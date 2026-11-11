@@ -1,6 +1,6 @@
 'use client'
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { CATEGORIES, DAYS_LIVE, EXPERIENCES, FREE_PER_DAY, MODALITIES, SCHEDULES, type Filters } from '@/lib/types'
 import { ago, left } from '@/lib/format'
 
@@ -14,16 +14,53 @@ export type CardData = {
 
 const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
 
-/** Hueco de la frase: se ve como texto subrayado y al tocarlo abre las opciones del sistema. */
-function Pick({ value, onChange, any, opts, label }: { value?: string; onChange: (v: string) => void; any: string; opts: [string, string][]; label: string }) {
-  const shown = opts.find(([v]) => v === value)?.[1].toLowerCase() ?? any
+type Opt = [value: string, menuLabel: string, sentenceLabel?: string]
+const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1)
+
+/** Hueco de la frase: texto subrayado que abre un menú propio. */
+function Pick({ value, onChange, any, opts, label }: { value?: string; onChange: (v: string) => void; any: string; opts: Opt[]; label: string }) {
+  const [open, setOpen] = useState(false)
+  const box = useRef<HTMLSpanElement>(null)
+  const cur = opts.find(([v]) => v === value)
+  const shown = cur ? (cur[2] ?? cur[1]).toLowerCase() : any
+  const all: Opt[] = [['', cap(any)], ...opts]
+
+  useEffect(() => {
+    if (!open) return
+    const out = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false) }
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(false); box.current?.querySelector('button')?.focus() } }
+    document.addEventListener('mousedown', out)
+    document.addEventListener('keydown', esc)
+    box.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.focus()
+    return () => { document.removeEventListener('mousedown', out); document.removeEventListener('keydown', esc) }
+  }, [open])
+
+  const arrows = (e: React.KeyboardEvent) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+    e.preventDefault()
+    const items = [...(box.current?.querySelectorAll<HTMLElement>('[role="option"]') ?? [])]
+    const i = items.indexOf(document.activeElement as HTMLElement)
+    items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus()
+  }
+
   return (
-    <span className={value ? 'pick set' : 'pick'}>
-      {shown}<i aria-hidden>▾</i>
-      <select value={value ?? ''} onChange={(e) => onChange(e.target.value)} aria-label={label}>
-        <option value="">{any}</option>
-        {opts.map(([v, l]) => <option key={v} value={v}>{l.toLowerCase()}</option>)}
-      </select>
+    <span className="pick" ref={box}>
+      <button type="button" className={value ? 'pick-btn set' : 'pick-btn'} aria-haspopup="listbox" aria-expanded={open}
+        aria-label={`${label}: ${shown}`} onClick={() => setOpen((o) => !o)}>
+        {shown}<i aria-hidden>▾</i>
+      </button>
+      {open && (
+        <span className="menu" role="listbox" aria-label={label} onKeyDown={arrows}>
+          {all.map(([v, l]) => {
+            const on = (value ?? '') === v
+            return (
+              <button type="button" role="option" aria-selected={on} key={v} onClick={() => { onChange(v); setOpen(false) }}>
+                {l}{on && <b aria-hidden>✓</b>}
+              </button>
+            )
+          })}
+        </span>
+      )}
     </span>
   )
 }
@@ -88,16 +125,16 @@ export function Catalog({ cards, initial }: { cards: CardData[]; initial: Filter
         <p className="kicker">Oportunidades todos los días</p>
         <h1 className="sentence">
           Busco trabajo{' '}
-          <Pick label="Modalidad" value={f.mod} onChange={set('mod')} any="en cualquier modalidad" opts={Object.entries(MODALITIES)} />{' '}
+          <Pick label="Modalidad" value={f.mod} onChange={set('mod')} any="en cualquier modalidad" opts={Object.entries(MODALITIES) as Opt[]} />{' '}
           en{' '}
-          <Pick label="Rubro" value={f.cat} onChange={set('cat')} any="cualquier rubro" opts={Object.entries(CATEGORIES)} />{' '}
+          <Pick label="Rubro" value={f.cat} onChange={set('cat')} any="cualquier rubro" opts={Object.entries(CATEGORIES) as Opt[]} />{' '}
           <Pick label="Experiencia" value={f.exp} onChange={set('exp')} any="con o sin experiencia"
-            opts={Object.entries(EXPERIENCES).map(([v, l]) => [v, v === 'sin_experiencia' ? l : 'nivel ' + l])} />
+            opts={Object.entries(EXPERIENCES).map(([v, l]): Opt => [v, l, v === 'sin_experiencia' ? l : 'nivel ' + l])} />
           .
         </h1>
         <div className="refine">
           <input type="search" value={f.q ?? ''} onChange={(e) => set('q')(e.target.value)} placeholder="O escribí un puesto: recepcionista, data entry…" aria-label="Buscar por puesto" />
-          <Pick label="Jornada" value={f.jor} onChange={set('jor')} any="cualquier jornada" opts={SCHEDULES.map((s) => [s, s])} />
+          <Pick label="Jornada" value={f.jor} onChange={set('jor')} any="cualquier jornada" opts={SCHEDULES.map((s): Opt => [s, s])} />
         </div>
       </section>
 

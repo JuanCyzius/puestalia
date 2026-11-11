@@ -33,16 +33,21 @@ main { max-width:1080px; margin:0 auto; padding:0 18px 56px; }
 .hero { background:var(--ink); color:#fff; border-radius:24px; padding:clamp(24px,5vw,56px); margin-top:6px; }
 .hero .kicker { color:var(--soft); }
 .sentence { font-size:clamp(27px,5.4vw,58px); line-height:1.32; margin:14px 0 26px; max-width:21ch; }
-.pick { position:relative; display:inline-block; max-width:100%; color:var(--soft); border-bottom:3px dashed #4a6378; cursor:pointer; transition:color .15s, border-color .15s; }
-.pick i { font-style:normal; font-size:.45em; margin-left:.35em; vertical-align:middle; opacity:.8; }
-.pick select { position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; font-size:16px; border:0; }
-.pick:hover { border-bottom-color:var(--acc); color:var(--acc); }
-.pick:focus-within { outline:3px solid var(--acc); outline-offset:4px; border-radius:6px; }
-.pick.set { color:var(--acc); border-bottom:3px solid var(--acc); }
-.pick option { color:var(--ink); background:#fff; }
+.pick { position:relative; display:inline-block; max-width:100%; }
+.pick-btn { font:inherit; letter-spacing:inherit; text-align:left; color:var(--soft); background:none; border:0; border-bottom:3px dashed #4a6378; border-radius:0; padding:0; margin:0; cursor:pointer; max-width:100%; transition:color .15s, border-color .15s; }
+.pick-btn i { font-style:normal; font-size:.45em; margin-left:.35em; vertical-align:middle; opacity:.8; display:inline-block; transition:transform .15s; }
+.pick-btn[aria-expanded="true"] i { transform:rotate(180deg); }
+.pick-btn:hover, .pick-btn[aria-expanded="true"] { border-bottom-color:var(--acc); color:var(--acc); }
+.pick-btn.set { color:var(--acc); border-bottom:3px solid var(--acc); }
+.menu { position:absolute; z-index:30; left:0; top:calc(100% + 10px); display:grid; gap:2px; min-width:250px; max-width:min(320px, calc(100vw - 72px)); padding:8px; background:#fff; border-radius:16px; box-shadow:0 18px 50px rgba(8,20,30,.35), 0 0 0 1px rgba(23,44,60,.06); animation:pop .14s ease-out both; transform-origin:top left; }
+@keyframes pop { from { opacity:0; transform:translateY(-6px) scale(.98); } }
+.menu button { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; text-align:left; font:500 16px/1.3 var(--body); letter-spacing:0; color:var(--ink); background:none; border:0; border-radius:10px; padding:11px 12px; cursor:pointer; }
+.menu button:hover, .menu button:focus-visible { background:#eef6e0; outline:0; }
+.menu button[aria-selected="true"] { background:var(--ink); color:#fff; font-weight:600; }
+.menu button b { color:var(--acc); font-weight:700; }
 .refine { display:flex; flex-wrap:wrap; align-items:center; gap:12px 18px; }
 .refine input { flex:1 1 280px; max-width:460px; font:inherit; font-size:16px; padding:13px 16px; border:0; border-radius:12px; background:#fff; color:var(--ink); }
-.refine .pick { font:500 16px var(--body); border-bottom-width:2px; padding-bottom:2px; } .refine .pick i { font-size:.8em; }
+.refine .pick-btn { font:500 16px var(--body); border-bottom-width:2px; padding-bottom:2px; } .refine .pick-btn i { font-size:.8em; }
 
 .count { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 16px; margin:26px 0 14px; color:var(--mute); }
 .count b { color:var(--ink); font:500 18px var(--mono); }
