@@ -98,3 +98,42 @@ export async function addWaitlist(email: string) {
   const { error } = await sb.from('waitlist').upsert({ email }, { onConflict: 'email' })
   if (error) throw new Error(error.message)
 }
+
+// ---------- Etapa 2: cuentas y suscripciones ----------
+
+export type Sub = { user_id: string; mp_preapproval_id: string | null; status: string; payer_email: string | null; next_payment_date: string | null }
+
+/** Manda el mail con el enlace de ingreso (lo envía Supabase). */
+export async function sendLoginLink(email: string, redirectTo: string) {
+  if (!sb) throw new Error('El ingreso necesita la base de datos conectada.')
+  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo, shouldCreateUser: true } })
+  if (error) throw new Error(error.message)
+}
+
+/** Valida contra Supabase el token que trae el enlace del mail. */
+export async function userFromAccessToken(token: string) {
+  if (!sb) return null
+  const { data, error } = await sb.auth.getUser(token)
+  return error || !data.user?.email ? null : { id: data.user.id, email: data.user.email }
+}
+
+export async function getSub(userId: string): Promise<Sub | null> {
+  if (!sb) return null
+  const { data } = await sb.from('subscriptions').select('*').eq('user_id', userId).maybeSingle()
+  return (data as Sub) ?? null
+}
+
+export async function saveSub(s: Sub) {
+  if (!sb) return
+  const cur = await getSub(s.user_id)
+  // Una suscripción vieja cancelada no pisa a una nueva que está activa.
+  if (cur && cur.status === 'authorized' && cur.mp_preapproval_id !== s.mp_preapproval_id && s.status !== 'authorized') return
+  const { error } = await sb.from('subscriptions').upsert({ ...s, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
+  if (error) throw new Error(error.message)
+}
+
+/** Premium = Mercado Pago informa la suscripción como autorizada. */
+export async function isPremium(userId: string | undefined) {
+  if (!userId) return false
+  return (await getSub(userId))?.status === 'authorized'
+}

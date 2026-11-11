@@ -8,7 +8,7 @@ import { ago, left } from '@/lib/format'
 export type CardData = {
   id: string; title: string; category: string; modality: keyof typeof MODALITIES | null
   experience: keyof typeof EXPERIENCES | null; schedule_type: string | null
-  published_at: string; expires_at: string; open: boolean
+  published_at: string; expires_at: string; open: boolean; free: boolean
   company: string | null; location: string | null; salary: string | null
 }
 
@@ -70,7 +70,7 @@ function Card({ c, i }: { c: CardData; i: number }) {
   const inner = (
     <>
       <div className="tags">
-        {c.open ? <span className="tag free">Gratis hoy</span> : <span className="tag lock">Premium</span>}
+        {!c.open ? <span className="tag lock">Premium</span> : c.free ? <span className="tag free">Gratis hoy</span> : null}
         {c.modality && <span className="tag">{MODALITIES[c.modality]}</span>}
         {c.experience === 'sin_experiencia' && <span className="tag">Sin experiencia</span>}
       </div>
@@ -94,7 +94,7 @@ function Card({ c, i }: { c: CardData; i: number }) {
     : <Link className="card locked" style={style} href="/premium">{inner}</Link>
 }
 
-export function Catalog({ cards, initial }: { cards: CardData[]; initial: Filters }) {
+export function Catalog({ cards, initial, premium = false }: { cards: CardData[]; initial: Filters; premium?: boolean }) {
   const [f, setF] = useState<Filters>(initial)
   const set = (k: keyof Filters) => (v: string) => setF((p) => ({ ...p, [k]: v || undefined }))
   const active = Object.values(f).some(Boolean)
@@ -141,7 +141,8 @@ export function Catalog({ cards, initial }: { cards: CardData[]; initial: Filter
       <div className="count" aria-live="polite">
         <p>
           <b>{list.length}</b> {list.length === 1 ? 'aviso vigente' : 'avisos vigentes'}
-          {list.length > 0 && <> · <b>{openCount}</b> {openCount === 1 ? 'se abre' : 'se abren'} gratis hoy</>}
+          {list.length > 0 && !premium && <> · <b>{openCount}</b> {openCount === 1 ? 'se abre' : 'se abren'} gratis hoy</>}
+          {premium && <> · Premium activo: abrís todos</>}
         </p>
         {active && <button className="clear" onClick={() => setF({})}>Borrar filtros</button>}
       </div>
@@ -154,7 +155,7 @@ export function Catalog({ cards, initial }: { cards: CardData[]; initial: Filter
           <button className="btn" onClick={() => setF({})}>Ver todos los avisos</button>
         </div>
       )}
-      <p className="fine">Mostramos gratis los {FREE_PER_DAY} avisos más nuevos. Los demás se abren con Premium.</p>
+      {!premium && <p className="fine">Mostramos gratis los {FREE_PER_DAY} avisos más nuevos. Los demás se abren con Premium.</p>}
     </>
   )
 }

@@ -1,7 +1,8 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { freeIds, getJob } from '@/lib/db'
+import { freeIds, getJob, isPremium } from '@/lib/db'
+import { getUser } from '@/lib/session'
 import { CATEGORIES, EXPERIENCES, MODALITIES } from '@/lib/types'
 import { dmy, left } from '@/lib/format'
 import { Apply } from './apply'
@@ -18,7 +19,7 @@ export default async function JobPage({ params }: P) {
   const { id } = await params
   const j = await getJob(id)
   if (!j) notFound() // vencido o inexistente: deja de estar disponible a la hora exacta de vencimiento
-  const open = (await freeIds()).has(j.id)
+  const open = (await freeIds()).has(j.id) || (await isPremium((await getUser())?.id))
 
   if (!open)
     return (
