@@ -1,6 +1,7 @@
 'use client'
-import { useState } from 'react'
-import { CATEGORIES, EXPERIENCES, MODALITIES, SCHEDULES, type JobDraft } from '@/lib/types'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { CATEGORIES, EXPERIENCES, MODALITIES, SCHEDULES, type Job, type JobDraft } from '@/lib/types'
+import { linkedinPost } from '@/lib/linkedin'
 
 const post = (url: string, body: unknown) =>
   fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
@@ -21,6 +22,7 @@ export function Login() {
   )
 }
 
+const TYPES = ['image/png', 'image/jpeg', 'image/webp', 'application/pdf']
 const toB64 = (f: File) => new Promise<string>((res, rej) => {
   const r = new FileReader()
   r.onload = () => res(String(r.result).split(',')[1])
@@ -28,47 +30,87 @@ const toB64 = (f: File) => new Promise<string>((res, rej) => {
   r.readAsDataURL(f)
 })
 
-export function Panel() {
-  const [draft, setDraft] = useState<JobDraft | null>(null)
-  const [busy, setBusy] = useState(false)
-  const [msg, setMsg] = useState<{ t: string; err?: boolean; dup?: boolean } | null>(null)
+function CopyLinkedin({ job }: { job: Job }) {
+  const [done, setDone] = useState(false)
+  return (
+    <button className="btn sm ghost" onClick={async () => {
+      await navigator.clipboard.writeText(linkedinPost(job, location.origin))
+      setDone(true); setTimeout(() => setDone(false), 2000)
+    }}>{done ? 'Copiado' : 'Copiar texto para LinkedIn'}</button>
+  )
+}
 
-  async function extract(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    const form = e.currentTarget
-    const fd = new FormData(form)
-    const file = fd.get('file') as File
+export function Panel() {
+  const [text, setText] = useState('')
+  const [url, setUrl] = useState('')
+  const [file, setFile] = useState<File | null>(null)
+  const [thumb, setThumb] = useState('')
+  const [over, setOver] = useState(false)
+  const [draft, setDraft] = useState<JobDraft | null>(null)
+  const [done, setDone] = useState<Job | null>(null)
+  const [recent, setRecent] = useState<Job[]>([])
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ t: string; dup?: boolean } | null>(null)
+  const pick = useRef<HTMLInputElement>(null)
+  const step = done ? 3 : draft ? 2 : 1
+
+  const loadRecent = useCallback(() => { fetch('/api/jobs').then((r) => r.json()).then((j) => setRecent(j.jobs ?? [])).catch(() => {}) }, [])
+  useEffect(loadRecent, [loadRecent])
+
+  const take = useCallback((f?: File | null) => {
+    if (!f) return
+    if (!TYPES.includes(f.type)) { setMsg({ t: 'Ese archivo no sirve. Usá una imagen (PNG, JPG, WEBP) o un PDF.' }); return }
+    if (f.size > 6 * 1024 * 1024) { setMsg({ t: 'El archivo pesa más de 6 MB. Recortá la captura o pegá el texto.' }); return }
+    setMsg(null); setFile(f)
+    setThumb(f.type.startsWith('image/') ? URL.createObjectURL(f) : '')
+  }, [])
+
+  // Pegar una captura con Ctrl+V en cualquier parte del paso 1.
+  useEffect(() => {
+    if (step !== 1) return
+    const onPaste = (e: ClipboardEvent) => {
+      const img = [...(e.clipboardData?.files ?? [])].find((f) => f.type.startsWith('image/'))
+      if (img) { e.preventDefault(); take(img) }
+    }
+    document.addEventListener('paste', onPaste)
+    return () => document.removeEventListener('paste', onPaste)
+  }, [step, take])
+
+  const ready = !!(text.trim() || url.trim() || file)
+
+  async function extract() {
     setBusy(true); setMsg(null)
     try {
-      const body: Record<string, unknown> = { text: fd.get('text'), url: fd.get('url') || undefined }
-      if (file?.size) body.file = { data: await toB64(file), media_type: file.type }
+      const body: Record<string, unknown> = { text: text.trim() || undefined, url: url.trim() || undefined }
+      if (file) body.file = { data: await toB64(file), media_type: file.type }
       const r = await post('/api/ingest', body)
       const j = await r.json()
       if (!r.ok) throw new Error(j.error)
       setDraft(j.draft)
-      form.reset()
-    } catch (x) { setMsg({ t: (x as Error).message, err: true }) }
+    } catch (x) { setMsg({ t: (x as Error).message }) }
     setBusy(false)
   }
 
   async function publish(force = false) {
-    setBusy(true)
+    setBusy(true); setMsg(null)
     const r = await post('/api/jobs', { draft, force })
     const j = await r.json()
-    if (r.ok) { setMsg({ t: `Publicado. Vence el ${new Date(j.job.expires_at).toLocaleDateString('es-AR')}.` }); setDraft(null) }
-    else setMsg({ t: j.error, err: true, dup: r.status === 409 })
+    if (r.ok) { setDone(j.job); setDraft(null); setText(''); setUrl(''); setFile(null); setThumb(''); loadRecent() }
+    else setMsg({ t: j.error, dup: r.status === 409 })
     setBusy(false)
   }
 
   const set = (k: keyof JobDraft, v: string) => setDraft((d) => d && { ...d, [k]: v.trim() === '' && k !== 'title' && k !== 'description' ? null : v })
-  const In = ({ k, label, area }: { k: keyof JobDraft; label: string; area?: boolean }) => (
-    <label key={k}>{label}{draft![k] ? '' : ' · no informado'}
+  const field = (k: keyof JobDraft, label: string, area = false) => (
+    <label key={k} className={draft![k] ? '' : 'missing'}>
+      <span>{label}{!draft![k] && <em>No informado</em>}</span>
       {area ? <textarea rows={5} value={draft![k] ?? ''} onChange={(e) => set(k, e.target.value)} />
             : <input value={draft![k] ?? ''} onChange={(e) => set(k, e.target.value)} />}
     </label>
   )
-  const Sel = ({ k, label, opts }: { k: keyof JobDraft; label: string; opts: [string, string][] }) => (
-    <label key={k}>{label}
+  const select = (k: keyof JobDraft, label: string, opts: [string, string][]) => (
+    <label key={k} className={draft![k] ? '' : 'missing'}>
+      <span>{label}{!draft![k] && <em>No informado</em>}</span>
       <select value={draft![k] ?? ''} onChange={(e) => set(k, e.target.value)}>
         <option value="">No informado</option>
         {opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
@@ -78,44 +120,133 @@ export function Panel() {
   const old = draft?.source_published_at && Date.now() - new Date(draft.source_published_at).getTime() > 20 * 86400000
 
   return (
-    <div className="admin">
-      <form className="form" onSubmit={extract}>
-        <h2>1. Cargar aviso</h2>
-        <label>Texto del aviso<textarea name="text" rows={8} placeholder="Pegá acá el texto copiado de LinkedIn, un mail, etc." /></label>
-        <label>Captura, foto o PDF<input type="file" name="file" accept="image/png,image/jpeg,image/webp,application/pdf" /></label>
-        <label>Enlace (páginas de empresas; LinkedIn e Instagram no)<input name="url" type="url" placeholder="https://..." /></label>
-        <button className="btn" disabled={busy}>{busy ? 'Procesando…' : 'Interpretar con IA'}</button>
-        {msg && <p className={msg.err ? 'msg err' : 'msg'}>{msg.t}</p>}
-        {msg?.dup && <button type="button" className="btn ghost" onClick={() => publish(true)}>Publicar igual</button>}
-      </form>
+    <div className="adm">
+      <ol className="steps" aria-label="Pasos">
+        {['Cargar', 'Revisar', 'Publicado'].map((s, i) => <li key={s} className={step === i + 1 ? 'on' : step > i + 1 ? 'past' : ''}><b>{i + 1}</b>{s}</li>)}
+      </ol>
 
-      {draft && (
-        <div className="form">
-          <h2>2. Revisar y aprobar</h2>
-          {old && <p className="msg err">El aviso original tiene más de 20 días. Verificá que siga abierto.</p>}
-          {In({ k: 'title', label: 'Puesto' })}
-          {In({ k: 'company', label: 'Empresa' })}
-          <div className="two">
-            {Sel({ k: 'category', label: 'Categoría', opts: Object.entries(CATEGORIES) })}
-            {Sel({ k: 'modality', label: 'Modalidad', opts: Object.entries(MODALITIES) })}
-            {Sel({ k: 'experience', label: 'Experiencia', opts: Object.entries(EXPERIENCES) })}
-            {Sel({ k: 'schedule_type', label: 'Jornada', opts: SCHEDULES.map((s) => [s, s]) })}
-            {In({ k: 'location', label: 'Ubicación' })}
-            {In({ k: 'hours', label: 'Horarios' })}
-            {In({ k: 'salary', label: 'Salario' })}
-            {In({ k: 'education', label: 'Estudios' })}
-            {In({ k: 'contact_email', label: 'Mail de postulación' })}
-            {In({ k: 'apply_url', label: 'Enlace' })}
-            {In({ k: 'source', label: 'Fuente' })}
-            {In({ k: 'source_published_at', label: 'Fecha original (AAAA-MM-DD)' })}
-            {In({ k: 'closing_date', label: 'Cierre (AAAA-MM-DD)' })}
+      {step === 1 && (
+        <section className="load">
+          <h1>Cargá un aviso</h1>
+          <p className="co">Usá lo que tengas: texto, captura o enlace. Con uno alcanza y, si combinás varios, la ficha sale más completa.</p>
+          <div className="srcs">
+            <div className="src">
+              <h3>Texto {text.trim() && <i>✓</i>}</h3>
+              <textarea rows={9} value={text} onChange={(e) => setText(e.target.value)} placeholder="Pegá el aviso copiado de LinkedIn, un mail, WhatsApp…" />
+            </div>
+            <div className="src">
+              <h3>Captura o PDF {file && <i>✓</i>}</h3>
+              <div className={over ? 'drop over' : 'drop'} role="button" tabIndex={0}
+                onClick={() => pick.current?.click()} onKeyDown={(e) => e.key === 'Enter' && pick.current?.click()}
+                onDragOver={(e) => { e.preventDefault(); setOver(true) }} onDragLeave={() => setOver(false)}
+                onDrop={(e) => { e.preventDefault(); setOver(false); take(e.dataTransfer.files[0]) }}>
+                {file ? (
+                  <>
+                    {thumb ? <img src={thumb} alt="Vista de la captura" /> : <p className="pdf">PDF</p>}
+                    <p>{file.name}</p>
+                    <button type="button" className="clear" onClick={(e) => { e.stopPropagation(); setFile(null); setThumb('') }}>Quitar</button>
+                  </>
+                ) : (
+                  <p><b>Arrastrá el archivo acá</b><br />o tocá para elegirlo. También podés pegar una captura con Ctrl+V.</p>
+                )}
+              </div>
+              <input ref={pick} type="file" hidden accept={TYPES.join(',')} onChange={(e) => { take(e.target.files?.[0]); e.target.value = '' }} />
+            </div>
+            <div className="src">
+              <h3>Enlace {url.trim() && <i>✓</i>}</h3>
+              <input type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" />
+              <p className="note">Si es de una empresa, leo la página. Si es de LinkedIn o Instagram, lo guardo como link de postulación y el contenido sale del texto o la captura.</p>
+            </div>
           </div>
-          {In({ k: 'description', label: 'Descripción', area: true })}
-          {In({ k: 'requirements', label: 'Requisitos', area: true })}
-          {In({ k: 'benefits', label: 'Beneficios', area: true })}
-          <button className="btn" disabled={busy} onClick={() => publish()}>Aprobar y publicar</button>
-          <button className="btn ghost" onClick={() => setDraft(null)}>Descartar</button>
-        </div>
+          {msg && <p className="msg err">{msg.t}</p>}
+          <button className="btn big" disabled={!ready || busy} onClick={extract}>{busy ? 'Leyendo el aviso…' : 'Armar la ficha'}</button>
+        </section>
+      )}
+
+      {step === 2 && draft && (
+        <section className="review">
+          <div className="form">
+            <h1>Revisá la ficha</h1>
+            <p className="co">Lo que el aviso no dice queda como “No informado”. Corregí lo que haga falta y publicá.</p>
+            {old && <p className="msg err">El aviso original tiene más de 20 días. Verificá que siga abierto.</p>}
+            <h3>Lo esencial</h3>
+            {field('title', 'Puesto')}
+            {field('company', 'Empresa')}
+            <div className="two">
+              {select('category', 'Categoría', Object.entries(CATEGORIES))}
+              {select('modality', 'Modalidad', Object.entries(MODALITIES))}
+              {field('location', 'Ubicación')}
+              {select('experience', 'Experiencia', Object.entries(EXPERIENCES))}
+            </div>
+            <h3>Condiciones</h3>
+            <div className="two">
+              {select('schedule_type', 'Jornada', SCHEDULES.map((s) => [s, s]))}
+              {field('hours', 'Horarios')}
+              {field('salary', 'Salario')}
+              {field('education', 'Estudios')}
+            </div>
+            <h3>Cómo postularse</h3>
+            <div className="two">
+              {field('contact_email', 'Mail de postulación')}
+              {field('apply_url', 'Enlace')}
+            </div>
+            <h3>Texto</h3>
+            {field('description', 'Descripción', true)}
+            {field('requirements', 'Requisitos', true)}
+            {field('benefits', 'Beneficios', true)}
+            <h3>Origen</h3>
+            <div className="two">
+              {field('source', 'Fuente')}
+              {field('source_published_at', 'Fecha original (AAAA-MM-DD)')}
+              {field('closing_date', 'Cierre (AAAA-MM-DD)')}
+            </div>
+          </div>
+          <aside className="side">
+            <p className="kicker">Así se va a ver</p>
+            <div className="card">
+              <div className="tags">
+                {draft.contact_email && <span className="tag direct">Mail directo</span>}
+                {draft.modality && <span className="tag">{MODALITIES[draft.modality]}</span>}
+                {draft.experience === 'sin_experiencia' && <span className="tag">Sin experiencia</span>}
+              </div>
+              <h3>{draft.title || 'Sin título'}</h3>
+              <p className="co">{draft.company ?? 'Empresa confidencial'} · {draft.location ?? 'Ubicación no informada'}</p>
+              {draft.salary && <p className="pay">{draft.salary}</p>}
+            </div>
+            {msg && <p className="msg err">{msg.t}</p>}
+            <button className="btn big" disabled={busy} onClick={() => publish()}>{busy ? 'Publicando…' : 'Publicar aviso'}</button>
+            {msg?.dup && <button className="btn ghost" onClick={() => publish(true)}>Publicar igual</button>}
+            <button className="btn ghost" onClick={() => { setDraft(null); setMsg(null) }}>Volver a cargar</button>
+          </aside>
+        </section>
+      )}
+
+      {step === 3 && done && (
+        <section className="done">
+          <h1>Publicado.</h1>
+          <p className="co">“{done.title}” ya está en el sitio y vence el {new Date(done.expires_at).toLocaleDateString('es-AR')}.</p>
+          <h3>Texto para LinkedIn</h3>
+          <pre className="li">{linkedinPost(done, location.origin)}</pre>
+          <div className="row">
+            <CopyLinkedin job={done} />
+            <a className="btn sm ghost" href={`/empleos/${done.id}`} target="_blank">Ver aviso</a>
+            <button className="btn sm" onClick={() => setDone(null)}>Cargar otro</button>
+          </div>
+        </section>
+      )}
+
+      {recent.length > 0 && step !== 2 && (
+        <section className="recent">
+          <h2>Últimos publicados</h2>
+          <ul>
+            {recent.map((j) => (
+              <li key={j.id}>
+                <div><a href={`/empleos/${j.id}`} target="_blank"><b>{j.title}</b></a><span>{j.company ?? 'Empresa confidencial'} · vence el {new Date(j.expires_at).toLocaleDateString('es-AR')}</span></div>
+                <CopyLinkedin job={j} />
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
     </div>
   )

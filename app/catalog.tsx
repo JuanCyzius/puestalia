@@ -8,7 +8,7 @@ import { ago, left } from '@/lib/format'
 export type CardData = {
   id: string; title: string; category: string; modality: keyof typeof MODALITIES | null
   experience: keyof typeof EXPERIENCES | null; schedule_type: string | null
-  published_at: string; expires_at: string; open: boolean; free: boolean
+  published_at: string; expires_at: string; open: boolean; free: boolean; direct: boolean
   company: string | null; location: string | null; salary: string | null
 }
 
@@ -71,6 +71,7 @@ function Card({ c, i }: { c: CardData; i: number }) {
     <>
       <div className="tags">
         {!c.open ? <span className="tag lock">Premium</span> : c.free ? <span className="tag free">Gratis hoy</span> : null}
+        {c.direct && <span className="tag direct">Mail directo</span>}
         {c.modality && <span className="tag">{MODALITIES[c.modality]}</span>}
         {c.experience === 'sin_experiencia' && <span className="tag">Sin experiencia</span>}
       </div>
@@ -112,6 +113,7 @@ export function Catalog({ cards, initial, premium = false }: { cards: CardData[]
       if (f.mod && c.modality !== f.mod) return false
       if (f.exp && c.experience !== f.exp) return false
       if (f.jor && c.schedule_type !== f.jor) return false
+      if (f.dir && !c.direct) return false
       if (!words.length) return true
       const hay = norm([c.title, CATEGORIES[c.category], c.modality && MODALITIES[c.modality], c.experience && EXPERIENCES[c.experience], c.schedule_type, c.company, c.location].filter(Boolean).join(' '))
       return words.every((w) => hay.includes(w))
@@ -135,7 +137,9 @@ export function Catalog({ cards, initial, premium = false }: { cards: CardData[]
         <div className="refine">
           <input type="search" value={f.q ?? ''} onChange={(e) => set('q')(e.target.value)} placeholder="O escribí un puesto: recepcionista, data entry…" aria-label="Buscar por puesto" />
           <Pick label="Jornada" value={f.jor} onChange={set('jor')} any="cualquier jornada" opts={SCHEDULES.map((s): Opt => [s, s])} />
+          <button type="button" className={f.dir ? 'toggle on' : 'toggle'} aria-pressed={!!f.dir} onClick={() => set('dir')(f.dir ? '' : '1')}>Solo con mail directo</button>
         </div>
+        <p className="pitch"><b>Mail directo:</b> en esos avisos tu CV le llega a una persona, no a un formulario.</p>
       </section>
 
       <div className="count" aria-live="polite">

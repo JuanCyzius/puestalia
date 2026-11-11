@@ -137,3 +137,31 @@ export async function isPremium(userId: string | undefined) {
   if (!userId) return false
   return (await getSub(userId))?.status === 'authorized'
 }
+
+// ---------- Cuentas con mail y contraseña ----------
+
+/** Cliente aparte para iniciar sesión: así la sesión del usuario nunca queda pegada al cliente del servidor. */
+const authClient = () => createClient(url!, key!, { auth: { persistSession: false, autoRefreshToken: false } })
+
+/** Crea la cuenta ya confirmada, sin enviar ningún mail. Devuelve null si el mail ya está registrado. */
+export async function registerUser(email: string, password: string, name?: string) {
+  if (!sb) throw new Error('Las cuentas necesitan la base de datos conectada.')
+  const { data, error } = await sb.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: name ? { name } : {} })
+  if (error) {
+    if (/already|registered|exists/i.test(error.message)) return null
+    throw new Error(error.message)
+  }
+  return { id: data.user.id, email }
+}
+
+export async function loginUser(email: string, password: string) {
+  if (!sb) throw new Error('Las cuentas necesitan la base de datos conectada.')
+  const { data, error } = await authClient().auth.signInWithPassword({ email, password })
+  return error || !data.user?.email ? null : { id: data.user.id, email: data.user.email }
+}
+
+export async function setPassword(userId: string, password: string) {
+  if (!sb) throw new Error('Las cuentas necesitan la base de datos conectada.')
+  const { error } = await sb.auth.admin.updateUserById(userId, { password })
+  if (error) throw new Error(error.message)
+}

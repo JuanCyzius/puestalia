@@ -33,7 +33,7 @@ export type Job = JobDraft & {
   fingerprint: string
 }
 
-export type Filters = { q?: string; cat?: string; mod?: string; exp?: string; jor?: string }
+export type Filters = { q?: string; cat?: string; mod?: string; exp?: string; jor?: string; dir?: string }
 
 export const CATEGORIES: Record<string, string> = {
   administracion: 'Administración',

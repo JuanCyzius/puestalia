@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { isAdmin } from '@/lib/auth'
-import { createJob, DuplicateError } from '@/lib/db'
+import { createJob, DuplicateError, listJobs } from '@/lib/db'
 import { CATEGORIES, type JobDraft } from '@/lib/types'
 
 const KEYS: (keyof JobDraft)[] = ['title', 'company', 'description', 'requirements', 'experience', 'education', 'location', 'modality',
@@ -23,4 +23,10 @@ export async function POST(req: Request) {
     if (e instanceof DuplicateError) return NextResponse.json({ error: 'Ya hay un aviso vigente con la misma empresa, puesto y ubicación.' }, { status: 409 })
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
   }
+}
+
+/** Últimos avisos publicados, para el panel. */
+export async function GET() {
+  if (!(await isAdmin())) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  return NextResponse.json({ jobs: (await listJobs()).slice(0, 12) })
 }

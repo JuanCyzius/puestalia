@@ -4,7 +4,7 @@ import { getSub } from '@/lib/db'
 import { mpReady, PRICE, syncSubscription } from '@/lib/mp'
 import { getUser } from '@/lib/session'
 import { dmy } from '@/lib/format'
-import { Cancel, Logout, Subscribe } from './ui'
+import { Cancel, ChangePassword, Logout, Subscribe } from './ui'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Mi cuenta', robots: { index: false } }
@@ -51,7 +51,9 @@ export default async function Cuenta({ searchParams }: { searchParams: Promise<{
       ) : (
         <p className="note">Las suscripciones todavía no están abiertas.</p>
       )}
-      <p style={{ marginTop: 28 }}><Logout /></p>
+      <h2>Acceso</h2>
+      <ChangePassword />
+      <p style={{ marginTop: 20 }}><Logout /></p>
     </article>
   )
 }
