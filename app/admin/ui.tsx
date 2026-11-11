@@ -218,7 +218,7 @@ export function Panel() {
             </div>
             {msg && <p className="msg err">{msg.t}</p>}
             <button className="btn big" disabled={busy} onClick={() => publish('queue')}>{busy && lastMode === 'queue' ? 'Sumando…' : 'Sumar a la cola'}</button>
-            <p className="note" style={{ margin: 0 }}>Sale sola más tarde, repartida con los demás avisos de la cola.</p>
+            <p className="note" style={{ margin: 0 }}>Los primeros 4 de la tanda salen al instante. El resto se reparte solo: más seguidos al principio y más espaciados después.</p>
             <button className="btn ghost" disabled={busy} onClick={() => publish('now')}>{busy && lastMode === 'now' ? 'Publicando…' : 'Publicar ahora'}</button>
             {msg?.dup && <button className="btn ghost" onClick={() => publish(lastMode, true)}>Guardar igual</button>}
             <button className="btn ghost" onClick={() => { setDraft(null); setMsg(null) }}>Volver a cargar</button>

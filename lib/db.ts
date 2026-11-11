@@ -172,23 +172,32 @@ export async function setPassword(userId: string, password: string) {
 
 const rnd = (a: number, b: number) => a + Math.random() * (b - a)
 
+export const INSTANT = 4 // cuántos salen al instante al empezar una tanda
+
 /**
- * Próxima hora libre de la cola. Cada aviso sale después del anterior con una pausa irregular:
- * a veces pegado (2 a 10 minutos) y a veces separado (25 a 75), así 20 avisos se reparten en unas 12 horas.
- * Entre las 0 y las 7 de Argentina no sale nada: pasa a la mañana.
+ * Hora de salida para un aviso que se suma a la cola.
+ * - Los primeros 4 de una tanda salen al instante.
+ * - El resto se reparte con pausas que van creciendo: empiezan en unos 4 minutos y se estiran
+ *   de a poco hasta un tope de 25, con algo de azar. Así salen más seguidos al principio y
+ *   más espaciados al final: 20 avisos tardan cerca de 4 horas.
+ * - Entre las 0 y las 7 de Argentina no sale nada: pasa a la mañana.
  */
 export async function nextSlot(): Promise<Date> {
   const now = Date.now()
-  let last = now
-  if (!sb) last = Math.max(now, ...mem().filter(vigente).map((j) => new Date(j.published_at).getTime()))
+  const since = now - 20 * 60000
+  let times: number[]
+  if (!sb) times = mem().filter(vigente).map((j) => new Date(j.published_at).getTime()).filter((t) => t > since)
   else {
-    const { data } = await sb.from('jobs').select('published_at').gt('published_at', new Date(now).toISOString()).order('published_at', { ascending: false }).limit(1)
-    if (data?.[0]) last = new Date(data[0].published_at).getTime()
+    const { data } = await sb.from('jobs').select('published_at').eq('status', 'active').gt('published_at', new Date(since).toISOString()).limit(500)
+    times = (data ?? []).map((r) => new Date(r.published_at as string).getTime())
   }
-  const gap = last === now ? rnd(2, 8) : Math.random() < 0.35 ? rnd(2, 10) : rnd(25, 75)
-  const t = new Date(last + gap * 60000)
+  const pending = times.filter((t) => t > now)
+  const recent = times.length - pending.length
+  if (!pending.length && recent < INSTANT) return new Date(now)
+  const gap = Math.min(25, 4 * Math.pow(1.15, pending.length)) * rnd(0.7, 1.3)
+  const t = new Date(Math.max(now, ...pending) + gap * 60000)
   const hourAR = (t.getUTCHours() + 21) % 24
-  if (hourAR < 7) { t.setUTCHours(t.getUTCHours() + (7 - hourAR), Math.floor(rnd(0, 20)), 0, 0) }
+  if (hourAR < 7) t.setUTCHours(t.getUTCHours() + (7 - hourAR), Math.floor(rnd(0, 20)), 0, 0)
   return t
 }
 
