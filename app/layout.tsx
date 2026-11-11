@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { demo } from '@/lib/db'
+import { getUser } from '@/lib/session'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -9,7 +10,8 @@ export const metadata: Metadata = {
   description: 'Avisos de empleo nuevos todos los días en Argentina: remotos, administrativos y sin experiencia. Revisados, vigentes y listos para postularte en un toque.',
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const user = await getUser()
   return (
     <html lang="es-AR">
       <head>
@@ -25,6 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/?mod=remoto">Remoto</Link>
             <Link href="/?exp=sin_experiencia">Sin experiencia</Link>
             <Link href="/?cat=administracion">Administración</Link>
+            <Link href={user ? '/cuenta' : '/ingresar'} className="acct">{user ? 'Mi cuenta' : 'Ingresar'}</Link>
             <Link href="/premium" className="btn sm">Premium</Link>
           </nav>
         </header>
