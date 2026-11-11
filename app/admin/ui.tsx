@@ -22,6 +22,8 @@ export function Login() {
   )
 }
 
+const queued = (j: Job) => new Date(j.published_at).getTime() > Date.now()
+const when = (iso: string) => new Date(iso).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })
 const TYPES = ['image/png', 'image/jpeg', 'image/webp', 'application/pdf']
 const toB64 = (f: File) => new Promise<string>((res, rej) => {
   const r = new FileReader()
@@ -51,6 +53,7 @@ export function Panel() {
   const [recent, setRecent] = useState<Job[]>([])
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ t: string; dup?: boolean } | null>(null)
+  const [lastMode, setLastMode] = useState<'now' | 'queue'>('queue')
   const pick = useRef<HTMLInputElement>(null)
   const step = done ? 3 : draft ? 2 : 1
 
@@ -91,9 +94,9 @@ export function Panel() {
     setBusy(false)
   }
 
-  async function publish(force = false) {
-    setBusy(true); setMsg(null)
-    const r = await post('/api/jobs', { draft, force })
+  async function publish(mode: 'now' | 'queue', force = false) {
+    setBusy(true); setMsg(null); setLastMode(mode)
+    const r = await post('/api/jobs', { draft, force, mode })
     const j = await r.json()
     if (r.ok) { setDone(j.job); setDraft(null); setText(''); setUrl(''); setFile(null); setThumb(''); loadRecent() }
     else setMsg({ t: j.error, dup: r.status === 409 })
@@ -122,7 +125,7 @@ export function Panel() {
   return (
     <div className="adm">
       <ol className="steps" aria-label="Pasos">
-        {['Cargar', 'Revisar', 'Publicado'].map((s, i) => <li key={s} className={step === i + 1 ? 'on' : step > i + 1 ? 'past' : ''}><b>{i + 1}</b>{s}</li>)}
+        {['Cargar', 'Revisar', 'Listo'].map((s, i) => <li key={s} className={step === i + 1 ? 'on' : step > i + 1 ? 'past' : ''}><b>{i + 1}</b>{s}</li>)}
       </ol>
 
       {step === 1 && (
@@ -214,8 +217,10 @@ export function Panel() {
               {draft.salary && <p className="pay">{draft.salary}</p>}
             </div>
             {msg && <p className="msg err">{msg.t}</p>}
-            <button className="btn big" disabled={busy} onClick={() => publish()}>{busy ? 'Publicando…' : 'Publicar aviso'}</button>
-            {msg?.dup && <button className="btn ghost" onClick={() => publish(true)}>Publicar igual</button>}
+            <button className="btn big" disabled={busy} onClick={() => publish('queue')}>{busy && lastMode === 'queue' ? 'Sumando…' : 'Sumar a la cola'}</button>
+            <p className="note" style={{ margin: 0 }}>Sale sola más tarde, repartida con los demás avisos de la cola.</p>
+            <button className="btn ghost" disabled={busy} onClick={() => publish('now')}>{busy && lastMode === 'now' ? 'Publicando…' : 'Publicar ahora'}</button>
+            {msg?.dup && <button className="btn ghost" onClick={() => publish(lastMode, true)}>Guardar igual</button>}
             <button className="btn ghost" onClick={() => { setDraft(null); setMsg(null) }}>Volver a cargar</button>
           </aside>
         </section>
@@ -223,8 +228,10 @@ export function Panel() {
 
       {step === 3 && done && (
         <section className="done">
-          <h1>Publicado.</h1>
-          <p className="co">“{done.title}” ya está en el sitio y vence el {new Date(done.expires_at).toLocaleDateString('es-AR')}.</p>
+          <h1>{queued(done) ? 'En la cola.' : 'Publicado.'}</h1>
+          <p className="co">{queued(done)
+            ? `“${done.title}” sale el ${when(done.published_at)}. Hasta entonces no se ve en el sitio.`
+            : `“${done.title}” ya está en el sitio y vence el ${new Date(done.expires_at).toLocaleDateString('es-AR')}.`}</p>
           <h3>Texto para LinkedIn</h3>
           <pre className="li">{linkedinPost(done, location.origin)}</pre>
           <div className="row">
@@ -237,12 +244,19 @@ export function Panel() {
 
       {recent.length > 0 && step !== 2 && (
         <section className="recent">
-          <h2>Últimos publicados</h2>
+          <h2>Cola y últimos publicados</h2>
+          {recent.some(queued) && <p className="co" style={{ marginBottom: 10 }}>{recent.filter(queued).length} en cola. El último sale el {when(recent.filter(queued)[0].published_at)}.</p>}
           <ul>
             {recent.map((j) => (
               <li key={j.id}>
-                <div><a href={`/empleos/${j.id}`} target="_blank"><b>{j.title}</b></a><span>{j.company ?? 'Empresa confidencial'} · vence el {new Date(j.expires_at).toLocaleDateString('es-AR')}</span></div>
-                <CopyLinkedin job={j} />
+                <div>
+                  <a href={`/empleos/${j.id}`} target="_blank"><b>{j.title}</b></a>
+                  <span>{j.company ?? 'Empresa confidencial'} · {queued(j) ? <em className="q">Sale el {when(j.published_at)}</em> : `vence el ${new Date(j.expires_at).toLocaleDateString('es-AR')}`}</span>
+                </div>
+                <div className="row">
+                  {queued(j) && <button className="btn sm ghost" onClick={async () => { await post('/api/jobs', { publish_now: j.id }); loadRecent() }}>Publicar ahora</button>}
+                  <CopyLinkedin job={j} />
+                </div>
               </li>
             ))}
           </ul>
