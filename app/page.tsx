@@ -20,14 +20,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<Fil
     const open = premium || free.has(j.id)
     return {
       id: j.id, title: j.title, category: j.category, modality: j.modality, experience: j.experience, schedule_type: j.schedule_type,
-      published_at: j.published_at, expires_at: j.expires_at, open, free: free.has(j.id),
+      published_at: j.published_at, expires_at: j.expires_at, open, free: free.has(j.id), direct: !!j.contact_email,
       company: open ? j.company : null, location: open ? j.location : null, salary: open ? j.salary : null,
     }
   })
 
   return (
     <>
-      <Catalog cards={cards} premium={premium} initial={{ q: f.q, cat: f.cat, mod: f.mod, exp: f.exp, jor: f.jor }} />
+      <Catalog cards={cards} premium={premium} initial={{ q: f.q, cat: f.cat, mod: f.mod, exp: f.exp, jor: f.jor, dir: f.dir }} />
 
       <section className="how">
         <h2>Cómo se usa</h2>

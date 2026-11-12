@@ -37,6 +37,13 @@ Reglas:
 - Si el contenido no es un aviso de empleo, devolvé title "NO ES UN AVISO".
 Hoy es ${new Date().toISOString().slice(0, 10)}.`
 
+function socialSite(url: string) {
+  try {
+    const h = new URL(url).hostname
+    return /(^|\.)linkedin\.com$/.test(h) ? 'LinkedIn' : /(^|\.)instagram\.com$/.test(h) ? 'Instagram' : null
+  } catch { return null }
+}
+
 async function readUrl(url: string) {
   const u = new URL(url)
   if (!/^https?:$/.test(u.protocol)) throw new Error('Enlace inválido')
@@ -49,17 +56,22 @@ async function readUrl(url: string) {
 }
 
 export async function extractJob(input: Input): Promise<JobDraft> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) throw new Error('Falta ANTHROPIC_API_KEY en las variables de entorno.')
   const content: unknown[] = []
   if (input.file) {
     const pdf = input.file.media_type === 'application/pdf'
     content.push({ type: pdf ? 'document' : 'image', source: { type: 'base64', media_type: input.file.media_type, data: input.file.data } })
   }
   let text = input.text?.trim() ?? ''
-  if (input.url) text += `\n\nContenido de ${input.url}:\n` + (await readUrl(input.url))
+  // LinkedIn e Instagram no se leen: el enlace se usa solo como link de postulación y el contenido sale del texto o la captura.
+  const social = input.url ? socialSite(input.url) : null
+  if (input.url && social) {
+    if (!text && !input.file) throw new Error(`${social} no deja leer sus páginas. Sumá el texto del aviso o una captura y uso el enlace como link de postulación.`)
+    text += `\n\nEnlace del aviso (${social}): ${input.url}`
+  } else if (input.url) text += `\n\nContenido de ${input.url}:\n` + (await readUrl(input.url))
   content.push({ type: 'text', text: text || 'Extraé el aviso del archivo adjunto.' })
 
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) throw new Error('Falta ANTHROPIC_API_KEY en las variables de entorno.')
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
@@ -83,7 +95,7 @@ export async function extractJob(input: Input): Promise<JobDraft> {
     experience: n(d.experience) as JobDraft['experience'], education: n(d.education), location: n(d.location),
     modality: n(d.modality) as JobDraft['modality'], schedule_type: n(d.schedule_type), hours: n(d.hours), salary: n(d.salary),
     benefits: n(d.benefits), contact_email: n(d.contact_email), apply_url: n(d.apply_url) ?? input.url ?? null,
-    category: CATEGORIES[d.category] ? d.category : 'otros', source: n(d.source),
+    category: CATEGORIES[d.category] ? d.category : 'otros', source: n(d.source) ?? social,
     source_published_at: n(d.source_published_at), closing_date: n(d.closing_date),
   }
 }

@@ -26,7 +26,9 @@ export function expiry(publishedAt: Date, closingDate: string | null) {
   return isNaN(close.getTime()) || close > max ? max : close
 }
 
-const live = (j: Job) => j.status === 'active' && new Date(j.expires_at) > new Date()
+const vigente = (j: Job) => j.status === 'active' && new Date(j.expires_at) > new Date()
+/** Visible en el sitio: vigente y con su hora de salida ya cumplida (los programados todavía no se ven). */
+const live = (j: Job) => vigente(j) && new Date(j.published_at) <= new Date()
 
 export async function listJobs(f: Filters = {}): Promise<Job[]> {
   if (!sb) {
@@ -44,7 +46,7 @@ export async function listJobs(f: Filters = {}): Promise<Job[]> {
       })
       .sort((a, b) => b.published_at.localeCompare(a.published_at))
   }
-  let q = sb.from('jobs').select('*').eq('status', 'active').gt('expires_at', new Date().toISOString())
+  let q = sb.from('jobs').select('*').eq('status', 'active').gt('expires_at', new Date().toISOString()).lte('published_at', new Date().toISOString())
   if (f.cat) q = q.eq('category', f.cat)
   if (f.mod) q = q.eq('modality', f.mod)
   if (f.exp) q = q.eq('experience', f.exp)
@@ -59,7 +61,7 @@ export async function listJobs(f: Filters = {}): Promise<Job[]> {
 export async function freeIds(): Promise<Set<string>> {
   if (!sb) return new Set((await listJobs()).slice(0, FREE_PER_DAY).map((j) => j.id))
   const { data, error } = await sb.from('jobs').select('id').eq('status', 'active')
-    .gt('expires_at', new Date().toISOString()).order('published_at', { ascending: false }).limit(FREE_PER_DAY)
+    .gt('expires_at', new Date().toISOString()).lte('published_at', new Date().toISOString()).order('published_at', { ascending: false }).limit(FREE_PER_DAY)
   if (error) throw new Error(error.message)
   return new Set(data.map((r) => r.id as string))
 }
@@ -68,24 +70,24 @@ export async function getJob(id: string): Promise<Job | null> {
   if (!sb) return mem().find((j) => j.id === id && live(j)) ?? null
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null
   const { data } = await sb.from('jobs').select('*').eq('id', id).eq('status', 'active')
-    .gt('expires_at', new Date().toISOString()).maybeSingle()
+    .gt('expires_at', new Date().toISOString()).lte('published_at', new Date().toISOString()).maybeSingle()
   return (data as Job) ?? null
 }
 
 export class DuplicateError extends Error {}
 
-export async function createJob(d: JobDraft, force = false): Promise<Job> {
-  const now = new Date()
+export async function createJob(d: JobDraft, force = false, when?: Date): Promise<Job> {
+  const now = when ?? new Date()
   const fp = fingerprint(d)
   const row = { ...d, published_at: now.toISOString(), expires_at: expiry(now, d.closing_date).toISOString(), status: 'active' as const, fingerprint: fp }
   if (!sb) {
-    if (!force && mem().some((j) => live(j) && j.fingerprint === fp)) throw new DuplicateError()
+    if (!force && mem().some((j) => vigente(j) && j.fingerprint === fp)) throw new DuplicateError()
     const job: Job = { ...row, id: 'n' + Date.now() }
     mem().push(job)
     return job
   }
   if (!force) {
-    const { data } = await sb.from('jobs').select('id').eq('fingerprint', fp).gt('expires_at', now.toISOString()).limit(1)
+    const { data } = await sb.from('jobs').select('id').eq('fingerprint', fp).eq('status', 'active').gt('expires_at', new Date().toISOString()).limit(1)
     if (data?.length) throw new DuplicateError()
   }
   const { data, error } = await sb.from('jobs').insert(row).select().single()
@@ -136,4 +138,83 @@ export async function saveSub(s: Sub) {
 export async function isPremium(userId: string | undefined) {
   if (!userId) return false
   return (await getSub(userId))?.status === 'authorized'
+}
+
+// ---------- Cuentas con mail y contraseña ----------
+
+/** Cliente aparte para iniciar sesión: así la sesión del usuario nunca queda pegada al cliente del servidor. */
+const authClient = () => createClient(url!, key!, { auth: { persistSession: false, autoRefreshToken: false } })
+
+/** Crea la cuenta ya confirmada, sin enviar ningún mail. Devuelve null si el mail ya está registrado. */
+export async function registerUser(email: string, password: string, name?: string) {
+  if (!sb) throw new Error('Las cuentas necesitan la base de datos conectada.')
+  const { data, error } = await sb.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: name ? { name } : {} })
+  if (error) {
+    if (/already|registered|exists/i.test(error.message)) return null
+    throw new Error(error.message)
+  }
+  return { id: data.user.id, email }
+}
+
+export async function loginUser(email: string, password: string) {
+  if (!sb) throw new Error('Las cuentas necesitan la base de datos conectada.')
+  const { data, error } = await authClient().auth.signInWithPassword({ email, password })
+  return error || !data.user?.email ? null : { id: data.user.id, email: data.user.email }
+}
+
+export async function setPassword(userId: string, password: string) {
+  if (!sb) throw new Error('Las cuentas necesitan la base de datos conectada.')
+  const { error } = await sb.auth.admin.updateUserById(userId, { password })
+  if (error) throw new Error(error.message)
+}
+
+// ---------- Publicación escalonada ----------
+
+const rnd = (a: number, b: number) => a + Math.random() * (b - a)
+
+export const INSTANT = 4 // cuántos salen al instante al empezar una tanda
+
+/**
+ * Hora de salida para un aviso que se suma a la cola.
+ * - Los primeros 4 de una tanda salen al instante.
+ * - El resto se reparte con pausas que van creciendo: empiezan en unos 4 minutos y se estiran
+ *   de a poco hasta un tope de 25, con algo de azar. Así salen más seguidos al principio y
+ *   más espaciados al final: 20 avisos tardan cerca de 4 horas.
+ * - Entre las 0 y las 7 de Argentina no sale nada: pasa a la mañana.
+ */
+export async function nextSlot(): Promise<Date> {
+  const now = Date.now()
+  const since = now - 20 * 60000
+  let times: number[]
+  if (!sb) times = mem().filter(vigente).map((j) => new Date(j.published_at).getTime()).filter((t) => t > since)
+  else {
+    const { data } = await sb.from('jobs').select('published_at').eq('status', 'active').gt('published_at', new Date(since).toISOString()).limit(500)
+    times = (data ?? []).map((r) => new Date(r.published_at as string).getTime())
+  }
+  const pending = times.filter((t) => t > now)
+  const recent = times.length - pending.length
+  if (!pending.length && recent < INSTANT) return new Date(now)
+  const gap = Math.min(25, 4 * Math.pow(1.15, pending.length)) * rnd(0.7, 1.3)
+  const t = new Date(Math.max(now, ...pending) + gap * 60000)
+  const hourAR = (t.getUTCHours() + 21) % 24
+  if (hourAR < 7) t.setUTCHours(t.getUTCHours() + (7 - hourAR), Math.floor(rnd(0, 20)), 0, 0)
+  return t
+}
+
+/** Avisos vigentes para el panel, incluidos los programados que todavía no salieron. */
+export async function listAdminJobs(): Promise<Job[]> {
+  if (!sb) return mem().filter(vigente).sort((a, b) => b.published_at.localeCompare(a.published_at)).slice(0, 40)
+  const { data, error } = await sb.from('jobs').select('*').eq('status', 'active').gt('expires_at', new Date().toISOString()).order('published_at', { ascending: false }).limit(40)
+  if (error) throw new Error(error.message)
+  return data as Job[]
+}
+
+/** Adelanta la salida de un aviso programado a este momento. */
+export async function publishNow(id: string) {
+  const now = new Date()
+  if (!sb) { const j = mem().find((x) => x.id === id); if (j && new Date(j.published_at) > now) { j.published_at = now.toISOString(); j.expires_at = expiry(now, j.closing_date).toISOString() } return }
+  const { data } = await sb.from('jobs').select('closing_date,published_at').eq('id', id).maybeSingle()
+  if (!data || new Date(data.published_at) <= now) return
+  const { error } = await sb.from('jobs').update({ published_at: now.toISOString(), expires_at: expiry(now, data.closing_date).toISOString() }).eq('id', id)
+  if (error) throw new Error(error.message)
 }
