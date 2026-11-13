@@ -1,12 +1,21 @@
 import { createHmac, timingSafeEqual } from 'crypto'
 import { cookies, headers } from 'next/headers'
+import { getUser } from './session'
 
 export const adminToken = () => createHmac('sha256', process.env.ADMIN_PASSWORD || '').update('puestalia-admin').digest('hex')
 
 const eq = (a: string, b: string) => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b))
 
-/** Admin = cookie del panel, o el token de carga en la cabecera Authorization (para conector o bot). */
+/** Mails con permiso de admin (variable ADMIN_EMAILS en Netlify, separados por coma). */
+export const isAdminEmail = (email?: string | null) =>
+  !!email && (process.env.ADMIN_EMAILS ?? '').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean).includes(email.toLowerCase())
+
+/**
+ * Admin = haber ingresado con una cuenta cuyo mail está en ADMIN_EMAILS,
+ * o la cookie del panel (contraseña ADMIN_PASSWORD), o el token de carga (conector o bot).
+ */
 export async function isAdmin() {
+  if (isAdminEmail((await getUser())?.email)) return true
   if (!process.env.ADMIN_PASSWORD) return false
   const c = (await cookies()).get('adm')?.value
   if (c && eq(c, adminToken())) return true

@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { usePathname } from 'next/navigation'
 
 type BIP = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> }
 let deferred: BIP | null = null
@@ -32,4 +33,19 @@ export function InstallButton({ className = 'clear' }: { className?: string }) {
       Instalar app
     </button>
   )
+}
+
+/** Avisa al servidor que esta pestaña sigue abierta (para ver cuánta gente hay en vivo). Anónimo: un id al azar por navegador. */
+export function Presence() {
+  const path = usePathname()
+  useEffect(() => {
+    let id = ''
+    try { id = localStorage.getItem('vid') || crypto.randomUUID(); localStorage.setItem('vid', id) } catch { id = crypto.randomUUID() }
+    const ping = () => { if (document.visibilityState === 'visible') fetch('/api/ping', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ v: id, p: path }), keepalive: true }).catch(() => {}) }
+    ping()
+    const t = setInterval(ping, 60000)
+    document.addEventListener('visibilitychange', ping)
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', ping) }
+  }, [path])
+  return null
 }

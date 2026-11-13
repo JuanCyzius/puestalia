@@ -309,3 +309,50 @@ export async function markPushSent(endpoint: string, at: Date) {
   if (!sb) return
   await sb.from('push_subscriptions').update({ last_sent_at: at.toISOString() }).eq('endpoint', endpoint)
 }
+
+// ---------- Visitas en vivo y métricas del panel ----------
+
+export async function ping(visitor: string, path: string, userId: string | null) {
+  if (!sb) return
+  await sb.from('presence').upsert({ visitor_id: visitor, path: path.slice(0, 120), user_id: userId, last_seen: new Date().toISOString() }, { onConflict: 'visitor_id' })
+}
+
+const cnt = async (q: PromiseLike<{ count: number | null; error: unknown }>) => { const r = await q; return r.error ? null : r.count ?? 0 }
+
+export async function adminStats() {
+  if (!sb) return null
+  const now = Date.now()
+  const iso = (ms: number) => new Date(ms).toISOString()
+  // Medianoche de hoy en Argentina (UTC-3).
+  const ar = new Date(now - 3 * 3600000); ar.setUTCHours(0, 0, 0, 0)
+  const today = ar.getTime() + 3 * 3600000
+  const head = { count: 'exact' as const, head: true }
+  const [live, todayV, week, liveRows, jobsLive, jobsQueued, jobsToday, pushSubs, users, passes] = await Promise.all([
+    cnt(sb.from('presence').select('visitor_id', head).gte('last_seen', iso(now - 2 * 60000))),
+    cnt(sb.from('presence').select('visitor_id', head).gte('last_seen', iso(today))),
+    cnt(sb.from('presence').select('visitor_id', head).gte('last_seen', iso(now - 7 * 86400000))),
+    sb.from('presence').select('path, user_id').gte('last_seen', iso(now - 2 * 60000)).limit(500),
+    cnt(sb.from('jobs').select('id', head).eq('status', 'active').gt('expires_at', iso(now)).lte('published_at', iso(now))),
+    cnt(sb.from('jobs').select('id', head).eq('status', 'active').gt('published_at', iso(now))),
+    cnt(sb.from('jobs').select('id', head).gte('published_at', iso(today)).lte('published_at', iso(now))),
+    cnt(sb.from('push_subscriptions').select('endpoint', head)),
+    sb.auth.admin.listUsers({ page: 1, perPage: 1000 }),
+    sb.from('passes').select('user_id, status, amount, ends_at, updated_at').eq('status', 'approved'),
+  ])
+  const pages: Record<string, number> = {}
+  for (const r of liveRows.data ?? []) pages[r.path || '/'] = (pages[r.path || '/'] ?? 0) + 1
+  const list = users.data?.users ?? []
+  const pv = passes.data ?? []
+  const month = pv.filter((p) => new Date(p.updated_at).getTime() >= now - 30 * 86400000)
+  return {
+    live, liveLogged: (liveRows.data ?? []).filter((r) => r.user_id).length,
+    livePages: Object.entries(pages).sort((a, b) => b[1] - a[1]).slice(0, 6),
+    today: todayV, week,
+    users: (users.data as { total?: number } | null)?.total ?? list.length,
+    usersToday: list.filter((u) => new Date(u.created_at).getTime() >= today).length,
+    premium: new Set(pv.filter((p) => p.ends_at && new Date(p.ends_at).getTime() > now).map((p) => p.user_id)).size,
+    sales30: month.length, revenue30: month.reduce((a, p) => a + Number(p.amount ?? 0), 0),
+    pushSubs, jobsLive, jobsQueued, jobsToday,
+    at: iso(now),
+  }
+}

@@ -2,7 +2,8 @@ import type { Metadata, Viewport } from 'next'
 import Link from 'next/link'
 import { demo } from '@/lib/db'
 import { getUser } from '@/lib/session'
-import { InstallButton, PwaSetup } from './pwa'
+import { InstallButton, Presence, PwaSetup } from './pwa'
+import { isAdminEmail } from '@/lib/auth'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -27,6 +28,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       </head>
       <body>
         <PwaSetup />
+        <Presence />
         {demo && <div className="demo">Modo demo: avisos ficticios de ejemplo. Conectá Supabase para publicar avisos reales.</div>}
         <header className="top">
           <Link href="/" className="logo" aria-label="Puestalia, inicio"><img src="/logo.png" alt="Puestalia" width={152} height={38} /></Link>
@@ -34,6 +36,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <Link href="/?mod=remoto">Remoto</Link>
             <Link href="/?exp=sin_experiencia">Sin experiencia</Link>
             <Link href="/?cat=administracion">Administración</Link>
+            {isAdminEmail(user?.email) && <Link href="/admin" className="acct">Admin</Link>}
             <InstallButton className="acct install" />
             <Link href={user ? '/cuenta' : '/ingresar'} className="acct">{user ? 'Mi cuenta' : 'Ingresar'}</Link>
             <Link href="/premium" className="btn sm">Premium</Link>
