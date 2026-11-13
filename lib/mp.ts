@@ -1,4 +1,4 @@
-import { saveSub } from './db'
+import { savePass, saveSub } from './db'
 
 const API = 'https://api.mercadopago.com'
 export const PRICE = Number(process.env.MP_PRICE) || 4900
@@ -13,16 +13,24 @@ async function call(path: string, init?: RequestInit) {
   return j
 }
 
-/** Crea la suscripción mensual atada al usuario del sitio y devuelve la dirección de pago. */
-export async function createSubscription(userId: string, payerEmail: string, site: string): Promise<string> {
-  const p = await call('/preapproval', {
+/**
+ * Crea el pago único del pase de 30 días (Checkout Pro) y devuelve la dirección de pago.
+ * No genera ningún débito automático: para seguir, la persona vuelve a pagar.
+ */
+export async function createPass(userId: string, email: string, site: string): Promise<string> {
+  const p = await call('/checkout/preferences', {
     method: 'POST',
     body: JSON.stringify({
-      reason: 'Puestalia Premium', external_reference: userId, payer_email: payerEmail, back_url: site + '/cuenta', status: 'pending',
-      auto_recurring: { frequency: 1, frequency_type: 'months', transaction_amount: PRICE, currency_id: 'ARS' },
+      items: [{ id: 'pase-30', title: 'Puestalia Premium · 30 días', description: 'Acceso a todos los avisos por 30 días. Pago único, sin renovación automática.', quantity: 1, unit_price: PRICE, currency_id: 'ARS' }],
+      external_reference: userId,
+      metadata: { kind: 'pase30', user_id: userId },
+      payer: { email },
+      back_urls: { success: site + '/cuenta', pending: site + '/cuenta', failure: site + '/cuenta' },
+      auto_return: 'approved',
+      notification_url: site + '/api/mp/webhook?source_news=webhooks',
+      statement_descriptor: 'PUESTALIA',
     }),
   })
-  await saveSub({ user_id: userId, mp_preapproval_id: p.id, status: p.status ?? 'pending', payer_email: payerEmail, next_payment_date: null })
   return p.init_point
 }
 
@@ -45,4 +53,15 @@ export async function syncFromPayment(authorizedPaymentId: string) {
 export async function cancelSubscription(preapprovalId: string) {
   await call('/preapproval/' + encodeURIComponent(preapprovalId), { method: 'PUT', body: JSON.stringify({ status: 'cancelled' }) })
   return syncSubscription(preapprovalId)
+}
+
+/** Pregunta a Mercado Pago el estado real de un pago del pase y lo guarda. */
+export async function syncPayment(paymentId: string, expectUser?: string) {
+  const p = await call('/v1/payments/' + encodeURIComponent(paymentId))
+  const user = String(p.external_reference ?? '')
+  if (!UUID.test(user) || (expectUser && user !== expectUser)) return null
+  // Solo cuentan los pagos creados por Puestalia para el pase (la marca la pone el servidor al crear el pago).
+  if (p.metadata?.kind !== 'pase30' || p.currency_id !== 'ARS') return null
+  await savePass({ mp_payment_id: String(p.id), user_id: user, status: p.status, amount: p.transaction_amount ?? null, approved_at: p.date_approved ?? null })
+  return p.status as string
 }

@@ -134,9 +134,61 @@ export async function saveSub(s: Sub) {
   if (error) throw new Error(error.message)
 }
 
-/** Premium = Mercado Pago informa la suscripción como autorizada. */
+// ---------- Etapa 3: pase de 30 días (pago único) ----------
+
+export const PASS_DAYS = 30
+export type Pass = { mp_payment_id: string; user_id: string; status: string; amount: number | null; starts_at: string | null; ends_at: string | null }
+
+export async function getPasses(userId: string): Promise<Pass[]> {
+  if (!sb) return []
+  const { data, error } = await sb.from('passes').select('*').eq('user_id', userId).order('updated_at', { ascending: false })
+  if (error) throw new Error(error.message)
+  return (data as Pass[]) ?? []
+}
+
+/** Revisa que la tabla exista antes de mandar a alguien a pagar. */
+export async function passesReady() {
+  if (!sb) return false
+  const { error } = await sb.from('passes').select('mp_payment_id', { head: true, count: 'exact' }).limit(1)
+  return !error
+}
+
+/** Hasta cuándo tiene Premium por pases aprobados (null si no tiene). */
+export async function premiumUntil(userId: string): Promise<Date | null> {
+  const ends = (await getPasses(userId).catch(() => []))
+    .filter((p) => p.status === 'approved' && p.ends_at)
+    .map((p) => new Date(p.ends_at!).getTime())
+  const max = ends.length ? Math.max(...ends) : 0
+  return max > Date.now() ? new Date(max) : null
+}
+
+/**
+ * Guarda el estado de un pago. Si se aprueba por primera vez, suma 30 días:
+ * desde hoy, o desde que termina el pase vigente si todavía le quedan días.
+ */
+export async function savePass(p: { mp_payment_id: string; user_id: string; status: string; amount: number | null; approved_at: string | null }) {
+  if (!sb) return
+  const all = await getPasses(p.user_id)
+  const cur = all.find((x) => x.mp_payment_id === p.mp_payment_id)
+  let starts_at = cur?.starts_at ?? null
+  let ends_at = cur?.ends_at ?? null
+  if (p.status === 'approved' && !ends_at) {
+    const prevEnd = Math.max(0, ...all.filter((x) => x.mp_payment_id !== p.mp_payment_id && x.status === 'approved' && x.ends_at).map((x) => new Date(x.ends_at!).getTime()))
+    const start = Math.max(Date.now(), prevEnd)
+    starts_at = new Date(start).toISOString()
+    ends_at = new Date(start + PASS_DAYS * 86400000).toISOString()
+  }
+  const { error } = await sb.from('passes').upsert(
+    { mp_payment_id: p.mp_payment_id, user_id: p.user_id, status: p.status, amount: p.amount, starts_at, ends_at, updated_at: new Date().toISOString() },
+    { onConflict: 'mp_payment_id' },
+  )
+  if (error) throw new Error(error.message)
+}
+
+/** Premium = pase de 30 días vigente (o una suscripción vieja que siga autorizada). */
 export async function isPremium(userId: string | undefined) {
   if (!userId) return false
+  if (await premiumUntil(userId)) return true
   return (await getSub(userId))?.status === 'authorized'
 }
 
