@@ -1,14 +1,14 @@
 'use client'
 import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { CATEGORIES, DAYS_LIVE, EXPERIENCES, FREE_PER_DAY, MODALITIES, SCHEDULES, type Filters } from '@/lib/types'
-import { ago, left } from '@/lib/format'
+import { CATEGORIES, DAYS_LIVE, EXPERIENCES, FREE_DELAY_DAYS, MODALITIES, SCHEDULES, type Filters } from '@/lib/types'
+import { ago, left, until } from '@/lib/format'
 
 /** Lo que llega al navegador. En los avisos bloqueados, empresa, ubicación y salario nunca salen del servidor. */
 export type CardData = {
   id: string; title: string; category: string; modality: keyof typeof MODALITIES | null
   experience: keyof typeof EXPERIENCES | null; schedule_type: string | null
-  published_at: string; expires_at: string; open: boolean; free: boolean; direct: boolean
+  published_at: string; expires_at: string; free_at: string; open: boolean; direct: boolean
   company: string | null; location: string | null; salary: string | null
 }
 
@@ -70,7 +70,7 @@ function Card({ c, i }: { c: CardData; i: number }) {
   const inner = (
     <>
       <div className="tags">
-        {!c.open ? <span className="tag lock">Premium</span> : c.free ? <span className="tag free">Gratis hoy</span> : null}
+        {!c.open && <span className="tag lock">Recién llegado</span>}
         {c.direct && <span className="tag direct">Mail directo</span>}
         {c.modality && <span className="tag">{MODALITIES[c.modality]}</span>}
         {c.experience === 'sin_experiencia' && <span className="tag">Sin experiencia</span>}
@@ -82,17 +82,18 @@ function Card({ c, i }: { c: CardData; i: number }) {
         <p className="co hidden-co" aria-label="Empresa y ubicación visibles con Premium"><i /><i /></p>
       )}
       {c.open && c.salary && <p className="pay">{c.salary}</p>}
+      {!c.open && <p className="soon" suppressHydrationWarning>Gratis en {until(c.free_at)} · con Premium, ya</p>}
       <div className="life">
         <div className="bar"><span style={{ width: `${Math.min(100, (days / DAYS_LIVE) * 100)}%` }} /></div>
         <div className="meta"><span suppressHydrationWarning>{ago(c.published_at)}</span><span suppressHydrationWarning>{left(c.expires_at)}</span></div>
       </div>
-      <span className="go">{c.open ? 'Ver aviso' : 'Desbloquear'} <b aria-hidden>→</b></span>
+      <span className="go">{c.open ? 'Ver aviso' : 'Abrir ya con Premium'} <b aria-hidden>→</b></span>
     </>
   )
   const style = { '--i': Math.min(i, 11) } as React.CSSProperties
   return c.open
     ? <Link className="card" style={style} href={`/empleos/${c.id}`}>{inner}</Link>
-    : <Link className="card locked" style={style} href="/premium">{inner}</Link>
+    : <Link className="card locked" style={style} href={`/empleos/${c.id}`}>{inner}</Link>
 }
 
 export function Catalog({ cards, initial, premium = false }: { cards: CardData[]; initial: Filters; premium?: boolean }) {
@@ -145,7 +146,7 @@ export function Catalog({ cards, initial, premium = false }: { cards: CardData[]
       <div className="count" aria-live="polite">
         <p>
           <b>{list.length}</b> {list.length === 1 ? 'aviso vigente' : 'avisos vigentes'}
-          {list.length > 0 && !premium && <> · <b>{openCount}</b> {openCount === 1 ? 'se abre' : 'se abren'} gratis hoy</>}
+          {list.length > 0 && !premium && <> · <b>{openCount}</b> {openCount === 1 ? 'abierto' : 'abiertos'} gratis · <b>{list.length - openCount}</b> {list.length - openCount === 1 ? 'recién llegado' : 'recién llegados'}, solo Premium</>}
           {premium && <> · Premium activo: abrís todos</>}
         </p>
         {active && <button className="clear" onClick={() => setF({})}>Borrar filtros</button>}
@@ -159,7 +160,7 @@ export function Catalog({ cards, initial, premium = false }: { cards: CardData[]
           <button className="btn" onClick={() => setF({})}>Ver todos los avisos</button>
         </div>
       )}
-      {!premium && <p className="fine">Mostramos gratis los {FREE_PER_DAY} avisos más nuevos. Los demás se abren con Premium.</p>}
+      {!premium && <p className="fine">En el plan gratis, cada aviso se abre {FREE_DELAY_DAYS} días después de publicado. Con Premium lo ves apenas entra.</p>}
     </>
   )
 }

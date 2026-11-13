@@ -1,10 +1,11 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { getPasses, getSub, PASS_DAYS, premiumUntil } from '@/lib/db'
+import { getPasses, getSub, listPushSubs, PASS_DAYS, premiumUntil } from '@/lib/db'
 import { mpReady, PRICE, syncPayment } from '@/lib/mp'
 import { getUser } from '@/lib/session'
 import { dmy } from '@/lib/format'
 import { BuyPass, Cancel, ChangePassword, Logout } from './ui'
+import { Avisos } from './avisos'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Mi cuenta', robots: { index: false } }
@@ -25,6 +26,7 @@ export default async function Cuenta({ searchParams }: { searchParams: Promise<{
   const premium = !!until || oldSub
   const waiting = (await getPasses(user.id).catch(() => [])).some((p) => p.status === 'pending' || p.status === 'in_process')
   const price = '$' + PRICE.toLocaleString('es-AR')
+  const saved = (await listPushSubs(user.id).catch(() => [])).map((s) => ({ endpoint: s.endpoint, cats: s.cats, mods: s.mods, exps: s.exps }))
 
   return (
     <article className="job">
@@ -33,7 +35,7 @@ export default async function Cuenta({ searchParams }: { searchParams: Promise<{
       <p className="co">{user.email}</p>
       <dl className="facts">
         <div><dt>Plan</dt><dd>{premium ? 'Premium' : 'Gratuito'}</dd></div>
-        <div><dt>Acceso</dt><dd>{premium ? 'Todos los avisos vigentes' : 'Los 8 avisos más nuevos'}</dd></div>
+        <div><dt>Acceso</dt><dd>{premium ? 'Cada aviso apenas entra' : 'Cada aviso 3 días después de publicado'}</dd></div>
         {until && <div><dt>Premium hasta</dt><dd>{dmy(until.toISOString())} · {daysLeft(until)} {daysLeft(until) === 1 ? 'día' : 'días'}</dd></div>}
         {until && <div><dt>Renovación</dt><dd>No se renueva sola</dd></div>}
       </dl>
@@ -63,6 +65,9 @@ export default async function Cuenta({ searchParams }: { searchParams: Promise<{
           <div style={{ marginTop: 14 }}><Cancel /></div>
         </>
       )}
+
+      <h2 id="avisos">Avisos al celular</h2>
+      <Avisos saved={saved} premium={premium} />
 
       <h2>Acceso</h2>
       <ChangePassword />

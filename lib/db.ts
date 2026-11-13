@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { DAYS_LIVE, FREE_PER_DAY, type Filters, type Job, type JobDraft } from './types'
+import { DAYS_LIVE, type Filters, type Job, type JobDraft } from './types'
 import { seedJobs } from './seed'
 
 const url = process.env.SUPABASE_URL
@@ -58,12 +58,11 @@ export async function listJobs(f: Filters = {}): Promise<Job[]> {
 }
 
 /** Los avisos que cualquiera puede abrir sin pagar: los 8 más recientes. */
-export async function freeIds(): Promise<Set<string>> {
-  if (!sb) return new Set((await listJobs()).slice(0, FREE_PER_DAY).map((j) => j.id))
-  const { data, error } = await sb.from('jobs').select('id').eq('status', 'active')
-    .gt('expires_at', new Date().toISOString()).lte('published_at', new Date().toISOString()).order('published_at', { ascending: false }).limit(FREE_PER_DAY)
+/** Deja un aviso abierto gratis desde ya (se usa al compartirlo en LinkedIn). */
+export async function setOpenFree(id: string) {
+  if (!sb) { const j = mem().find((x) => x.id === id); if (j) j.open_free = true; return }
+  const { error } = await sb.from('jobs').update({ open_free: true }).eq('id', id)
   if (error) throw new Error(error.message)
-  return new Set(data.map((r) => r.id as string))
 }
 
 export async function getJob(id: string): Promise<Job | null> {
@@ -269,4 +268,44 @@ export async function publishNow(id: string) {
   if (!data || new Date(data.published_at) <= now) return
   const { error } = await sb.from('jobs').update({ published_at: now.toISOString(), expires_at: expiry(now, data.closing_date).toISOString() }).eq('id', id)
   if (error) throw new Error(error.message)
+}
+
+// ---------- Notificaciones al celular ----------
+
+export type PushSub = {
+  endpoint: string; user_id: string; p256dh: string; auth: string
+  cats: string[]; mods: string[]; exps: string[]; created_at: string; last_sent_at: string | null
+}
+
+export async function savePushSub(s: Omit<PushSub, 'created_at' | 'last_sent_at'>) {
+  if (!sb) throw new Error('Las notificaciones necesitan la base de datos conectada.')
+  const { error } = await sb.from('push_subscriptions').upsert(s, { onConflict: 'endpoint' })
+  if (error) throw new Error(error.message)
+}
+
+export async function getPushSub(endpoint: string): Promise<PushSub | null> {
+  if (!sb) return null
+  const { data } = await sb.from('push_subscriptions').select('*').eq('endpoint', endpoint).maybeSingle()
+  return (data as PushSub) ?? null
+}
+
+export async function listPushSubs(userId?: string): Promise<PushSub[]> {
+  if (!sb) return []
+  let q = sb.from('push_subscriptions').select('*')
+  if (userId) q = q.eq('user_id', userId)
+  const { data, error } = await q
+  if (error) throw new Error(error.message)
+  return (data as PushSub[]) ?? []
+}
+
+export async function deletePushSub(endpoint: string, userId?: string) {
+  if (!sb) return
+  let q = sb.from('push_subscriptions').delete().eq('endpoint', endpoint)
+  if (userId) q = q.eq('user_id', userId)
+  await q
+}
+
+export async function markPushSent(endpoint: string, at: Date) {
+  if (!sb) return
+  await sb.from('push_subscriptions').update({ last_sent_at: at.toISOString() }).eq('endpoint', endpoint)
 }

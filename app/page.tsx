@@ -1,7 +1,8 @@
 import Link from 'next/link'
-import { freeIds, isPremium, listJobs } from '@/lib/db'
+import { isPremium, listJobs } from '@/lib/db'
+import { PRICE } from '@/lib/mp'
 import { getUser } from '@/lib/session'
-import { FREE_PER_DAY, type Filters } from '@/lib/types'
+import { FREE_DELAY_DAYS, freeAt, type Filters } from '@/lib/types'
 import { Catalog, type CardData } from './catalog'
 
 export const dynamic = 'force-dynamic'
@@ -14,13 +15,14 @@ const STEPS = [
 ]
 
 export default async function Home({ searchParams }: { searchParams: Promise<Filters> }) {
-  const [f, jobs, free, user] = await Promise.all([searchParams, listJobs(), freeIds(), getUser()])
+  const [f, jobs, user] = await Promise.all([searchParams, listJobs(), getUser()])
   const premium = await isPremium(user?.id)
   const cards: CardData[] = jobs.map((j) => {
-    const open = premium || free.has(j.id)
+    const free_at = freeAt(j)
+    const open = premium || free_at.getTime() <= Date.now()
     return {
       id: j.id, title: j.title, category: j.category, modality: j.modality, experience: j.experience, schedule_type: j.schedule_type,
-      published_at: j.published_at, expires_at: j.expires_at, open, free: free.has(j.id), direct: !!j.contact_email,
+      published_at: j.published_at, expires_at: j.expires_at, free_at: free_at.toISOString(), open, direct: !!j.contact_email,
       company: open ? j.company : null, location: open ? j.location : null, salary: open ? j.salary : null,
     }
   })
@@ -37,11 +39,19 @@ export default async function Home({ searchParams }: { searchParams: Promise<Fil
         <p className="promise">Cada aviso se lee antes de publicarse, enlaza a su fuente y se baja solo a los 30 días. Los que piden plata o datos bancarios no entran.</p>
       </section>
 
+      <section className="app-cta">
+        <div>
+          <h2>Que las ofertas te lleguen al celular</h2>
+          <p>Instalá Puestalia como app y activá las notificaciones. Elegís rubro, modalidad y experiencia, y te avisamos solo de lo que te sirve.</p>
+        </div>
+        <Link className="btn ghost" href={user ? '/cuenta#avisos' : '/ingresar?next=/cuenta%23avisos'}>Activar avisos</Link>
+      </section>
+
       {!premium && (
         <section className="cta">
-          <h2>Los {FREE_PER_DAY} más nuevos son gratis. Con Premium abrís todos.</h2>
-          <p>Todos los avisos vigentes de los últimos 30 días, con empresa, contacto y enlace para postularte.</p>
-          <Link className="btn" href="/premium">Quiero Premium</Link>
+          <h2>Premium te muestra cada oferta apenas entra. Gratis, {FREE_DELAY_DAYS} días después.</h2>
+          <p>Postularte en los primeros días suele pesar: muchos reclutadores leen primero los CV que llegan antes. Pase de 30 días por ${PRICE.toLocaleString('es-AR')}, pago único, sin débito automático.</p>
+          <Link className="btn" href="/premium">Quiero verlas primero</Link>
         </section>
       )}
     </>
