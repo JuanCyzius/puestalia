@@ -96,16 +96,20 @@ function Card({ c, i }: { c: CardData; i: number }) {
     : <Link className="card locked" style={style} href={`/empleos/${c.id}`}>{inner}</Link>
 }
 
-export function Catalog({ cards, initial, premium = false }: { cards: CardData[]; initial: Filters; premium?: boolean }) {
+export function Catalog({ cards, initial, premium = false, preset, title, intro }: { cards: CardData[]; initial: Filters; premium?: boolean; preset?: Filters; title?: string; intro?: string }) {
   const [f, setF] = useState<Filters>(initial)
   const set = (k: keyof Filters) => (v: string) => setF((p) => ({ ...p, [k]: v || undefined }))
   const active = Object.values(f).some(Boolean)
 
   // La búsqueda queda en la dirección, así se puede compartir o guardar.
   useEffect(() => {
-    const qs = new URLSearchParams(Object.entries(f).filter(([, v]) => v) as [string, string][]).toString()
-    history.replaceState(null, '', qs ? '/?' + qs : '/')
-  }, [f])
+    // En una página por tema (/trabajo-remoto) el filtro de la página no se repite en la dirección.
+    const keep = Object.entries(f).filter(([k, v]) => v && preset?.[k as keyof Filters] !== v) as [string, string][]
+    const presetOn = !!preset && Object.entries(preset).every(([k, v]) => f[k as keyof Filters] === v)
+    const base = presetOn ? location.pathname : '/'
+    const qs = new URLSearchParams(presetOn ? keep : (Object.entries(f).filter(([, v]) => v) as [string, string][])).toString()
+    history.replaceState(null, '', qs ? base + '?' + qs : base)
+  }, [f, preset])
 
   const list = useMemo(() => {
     const words = norm(f.q ?? '').split(/\s+/).filter(Boolean)
@@ -121,12 +125,13 @@ export function Catalog({ cards, initial, premium = false }: { cards: CardData[]
     })
   }, [cards, f])
   const openCount = list.filter((c) => c.open).length
+  const SentenceTag = title ? 'p' : 'h1'
 
   return (
     <>
       <section className="hero">
-        <p className="kicker">Oportunidades todos los días</p>
-        <h1 className="sentence">
+        {title ? <h1 className="kicker">{title}</h1> : <p className="kicker">Oportunidades todos los días</p>}
+        <SentenceTag className="sentence">
           Busco trabajo{' '}
           <Pick label="Modalidad" value={f.mod} onChange={set('mod')} any="en cualquier modalidad" opts={Object.entries(MODALITIES) as Opt[]} />{' '}
           en{' '}
@@ -134,13 +139,14 @@ export function Catalog({ cards, initial, premium = false }: { cards: CardData[]
           <Pick label="Experiencia" value={f.exp} onChange={set('exp')} any="con o sin experiencia"
             opts={Object.entries(EXPERIENCES).map(([v, l]): Opt => [v, l, v === 'sin_experiencia' ? l : 'nivel ' + l])} />
           .
-        </h1>
+        </SentenceTag>
         <div className="refine">
           <input type="search" value={f.q ?? ''} onChange={(e) => set('q')(e.target.value)} placeholder="O escribí un puesto: recepcionista, data entry…" aria-label="Buscar por puesto" />
           <Pick label="Jornada" value={f.jor} onChange={set('jor')} any="cualquier jornada" opts={SCHEDULES.map((s): Opt => [s, s])} />
           <button type="button" className={f.dir ? 'toggle on' : 'toggle'} aria-pressed={!!f.dir} onClick={() => set('dir')(f.dir ? '' : '1')}>Solo con mail directo</button>
         </div>
         <p className="pitch"><b>Mail directo:</b> en esos avisos tu CV le llega a una persona, no a un formulario.</p>
+        {intro && <p className="intro">{intro}</p>}
       </section>
 
       <div className="count" aria-live="polite">

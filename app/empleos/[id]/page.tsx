@@ -12,7 +12,9 @@ type P = { params: Promise<{ id: string }> }
 
 export async function generateMetadata({ params }: P): Promise<Metadata> {
   const j = await getJob((await params).id)
-  return j ? { title: j.title, description: `${j.title} · ${MODALITIES[j.modality!] ?? ''} · Aviso vigente en Puestalia` } : {}
+  if (!j) return {}
+  const d = [j.title, j.modality && MODALITIES[j.modality], j.experience && EXPERIENCES[j.experience], j.location].filter(Boolean).join(' · ') + '. Aviso vigente en Puestalia: requisitos, horario y cómo postularte.'
+  return { title: j.title, description: d, alternates: { canonical: `/empleos/${j.id}` }, openGraph: { title: j.title, description: d, url: `/empleos/${j.id}`, type: 'article', siteName: 'Puestalia', locale: 'es_AR', images: ['/opengraph-image.jpg'] } }
 }
 
 export default async function JobPage({ params }: P) {
