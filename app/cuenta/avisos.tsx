@@ -115,7 +115,7 @@ export function Avisos({ saved, premium }: { saved: Saved[]; premium: boolean })
           <p className="note">Hace falta iOS 16.4 o posterior.</p>
         </div>
       )}
-      {state === 'unsupported' && <p className="note">Este navegador no permite notificaciones. En Android usá Chrome; en iPhone, Safari con la app agregada a la pantalla de inicio.</p>}
+      {state === 'unsupported' && <p className="note">Este navegador no permite notificaciones. En la compu usá Chrome, Edge o Firefox; en Android, Chrome; en iPhone, Safari con la app agregada a la pantalla de inicio.</p>}
       {state === 'denied' && <p className="msg err">Bloqueaste las notificaciones de Puestalia. Para activarlas, entrá a la configuración del navegador o del celular, buscá Puestalia y permitilas. Después recargá esta página.</p>}
 
       {(state === 'off' || state === 'on') && prefs}
@@ -125,7 +125,7 @@ export function Avisos({ saved, premium }: { saved: Saved[]; premium: boolean })
           <>
             <button className="btn sm" disabled={busy} onClick={save}>Guardar preferencias</button>
             <button className="btn sm ghost" disabled={busy} onClick={test}>Mandarme una de prueba</button>
-            <button className="clear" disabled={busy} onClick={off}>Desactivar en este dispositivo</button>
+            <button className="clear" disabled={busy} onClick={off}>Desactivar acá</button>
           </>
         )}
         <InstallButton className="btn sm ghost" />

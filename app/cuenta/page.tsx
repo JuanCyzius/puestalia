@@ -66,7 +66,7 @@ export default async function Cuenta({ searchParams }: { searchParams: Promise<{
         </>
       )}
 
-      <h2 id="avisos">Avisos al celular</h2>
+      <h2 id="avisos">Avisos en el celular y la compu</h2>
       <Avisos saved={saved} premium={premium} />
 
       <h2>Acceso</h2>

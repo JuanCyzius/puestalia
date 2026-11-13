@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import Link from 'next/link'
 import { demo } from '@/lib/db'
 import { getUser } from '@/lib/session'
-import { InstallButton, Presence, PwaSetup } from './pwa'
+import { InstallButton, NewJobsWatcher, Presence, PwaSetup } from './pwa'
 import { isAdminEmail } from '@/lib/auth'
 import './globals.css'
 
@@ -29,6 +29,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body>
         <PwaSetup />
         <Presence />
+        <NewJobsWatcher />
         {demo && <div className="demo">Modo demo: avisos ficticios de ejemplo. Conectá Supabase para publicar avisos reales.</div>}
         <header className="top">
           <Link href="/" className="logo" aria-label="Puestalia, inicio"><img src="/logo.png" alt="Puestalia" width={152} height={38} /></Link>

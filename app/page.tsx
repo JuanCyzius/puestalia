@@ -41,8 +41,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<Fil
 
       <section className="app-cta">
         <div>
-          <h2>Que las ofertas te lleguen al celular</h2>
-          <p>Instalá Puestalia como app y activá las notificaciones. Elegís rubro, modalidad y experiencia, y te avisamos solo de lo que te sirve.</p>
+          <h2>Que las ofertas te lleguen al celular o a la compu</h2>
+          <p>Instalá Puestalia como app o activá las notificaciones en el navegador de la compu. Elegís rubro, modalidad y experiencia, y te avisamos solo de lo que te sirve.</p>
         </div>
         <Link className="btn ghost" href={user ? '/cuenta#avisos' : '/ingresar?next=/cuenta%23avisos'}>Activar avisos</Link>
       </section>

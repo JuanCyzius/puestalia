@@ -173,3 +173,10 @@ main { max-width:1080px; margin:0 auto; padding:0 18px 56px; }
 .stats .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin:0; }
 .stats .grid div { background:var(--bg); border-radius:14px; padding:12px 14px; }
 .stats dt { font-size:13px; color:var(--mute); } .stats dd { margin:4px 0 0; font:700 22px/1.2 var(--body); } .stats dd small { font:500 13px var(--body); color:var(--mute); }
+
+/* Aviso de ofertas nuevas para la pestaña abierta */
+.newjobs { position:fixed; left:50%; bottom:18px; transform:translateX(-50%); z-index:50; display:flex; align-items:center; gap:12px; max-width:min(560px,calc(100vw - 24px)); background:var(--ink); color:#fff; border-radius:16px; padding:10px 10px 10px 16px; box-shadow:0 10px 30px rgba(23,44,60,.25); animation:rise .3s ease-out; }
+.newjobs span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; font-size:15px; }
+.newjobs .clear { text-decoration:none; color:#fff; opacity:.7; background:none; border:0; cursor:pointer; font-size:16px; padding:4px 6px; }
+@keyframes rise { from { transform:translate(-50%,16px); opacity:0; } }
+@media (prefers-reduced-motion:reduce) { .newjobs { animation:none; } }
