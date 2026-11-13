@@ -1,10 +1,10 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { freeIds, getJob, isPremium } from '@/lib/db'
+import { getJob, isPremium } from '@/lib/db'
 import { getUser } from '@/lib/session'
-import { CATEGORIES, EXPERIENCES, MODALITIES } from '@/lib/types'
-import { dmy, left } from '@/lib/format'
+import { CATEGORIES, EXPERIENCES, FREE_DELAY_DAYS, freeAt, MODALITIES } from '@/lib/types'
+import { dayHour, dmy, left, until } from '@/lib/format'
 import { Apply } from './apply'
 
 export const dynamic = 'force-dynamic'
@@ -19,18 +19,19 @@ export default async function JobPage({ params }: P) {
   const { id } = await params
   const j = await getJob(id)
   if (!j) notFound() // vencido o inexistente: deja de estar disponible a la hora exacta de vencimiento
-  const open = (await freeIds()).has(j.id) || (await isPremium((await getUser())?.id))
+  const fa = freeAt(j)
+  const open = fa.getTime() <= Date.now() || (await isPremium((await getUser())?.id))
 
   if (!open)
     return (
       <article className="job">
-        <div className="kicker">Aviso Premium</div>
+        <div className="kicker">Recién llegado · Premium</div>
         <h1>{j.title}</h1>
-        <p className="co">{CATEGORIES[j.category]} · {j.modality ? MODALITIES[j.modality] : 'Modalidad no informada'}</p>
+        <p className="co">{CATEGORIES[j.category]} · {j.modality ? MODALITIES[j.modality] : 'Modalidad no informada'}{j.experience ? ' · ' + EXPERIENCES[j.experience] : ''}</p>
         <section className="cta">
-          <h2>Este aviso ya salió de los gratuitos de hoy.</h2>
-          <p>Con Premium ves la ficha completa, la empresa y cómo postularte, en este y en todos los avisos vigentes.</p>
-          <Link className="btn" href="/premium">Quiero Premium</Link>
+          <h2>Se abre gratis en {until(fa.toISOString())}.</h2>
+          <p>En el plan gratis cada aviso se abre {FREE_DELAY_DAYS} días después de publicado; este, el {dayHour(fa.toISOString())}. Con Premium lo abrís ya, con la empresa, el contacto y cómo postularte. Postularte en los primeros días suele pesar.</p>
+          <Link className="btn" href="/premium">Abrir ya con Premium</Link>
         </section>
       </article>
     )

@@ -37,8 +37,9 @@ function CopyLinkedin({ job }: { job: Job }) {
   return (
     <button className="btn sm ghost" onClick={async () => {
       await navigator.clipboard.writeText(linkedinPost(job, location.origin))
+      post('/api/jobs', { open_free: job.id }).catch(() => {}) // queda abierto gratis para quien llegue desde LinkedIn
       setDone(true); setTimeout(() => setDone(false), 2000)
-    }}>{done ? 'Copiado' : 'Copiar texto para LinkedIn'}</button>
+    }} title="Copia el texto y deja este aviso abierto gratis">{done ? 'Copiado · abierto gratis' : 'Copiar texto para LinkedIn'}</button>
   )
 }
 

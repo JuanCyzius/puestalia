@@ -3,27 +3,22 @@ import { useState } from 'react'
 
 const post = (url: string, body?: unknown) => fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body ?? {}) })
 
-export function Subscribe({ email, price }: { email: string; price: string }) {
-  const [payer, setPayer] = useState(email)
+export function BuyPass({ price, again }: { price: string; again: boolean }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
-  async function go(e: React.FormEvent) {
-    e.preventDefault()
+  async function go() {
     setBusy(true); setErr('')
-    const r = await post('/api/subscribe', { payer_email: payer })
+    const r = await post('/api/subscribe')
     const j = await r.json()
     if (r.ok) location.href = j.url
     else { setErr(j.error); setBusy(false) }
   }
   return (
-    <form className="form" onSubmit={go}>
-      <label>Mail de tu cuenta de Mercado Pago
-        <input type="email" required value={payer} onChange={(e) => setPayer(e.target.value)} autoComplete="email" />
-      </label>
-      <button className="btn" disabled={busy}>{busy ? 'Abriendo Mercado Pago…' : `Suscribirme por ${price} al mes`}</button>
+    <div className="form">
+      <button className="btn" disabled={busy} onClick={go}>{busy ? 'Abriendo Mercado Pago…' : again ? `Sumar 30 días por ${price}` : `Pagar ${price} · 30 días`}</button>
       {err && <p className="msg err">{err}</p>}
-      <p className="note">Tiene que ser el mail con el que entrás a Mercado Pago; si es otro, el pago no se puede completar. Cancelás cuando quieras desde esta página.</p>
-    </form>
+      <p className="note">Pago único con Mercado Pago: tarjeta, débito, dinero en cuenta y los demás medios que te ofrezca. Sin débito automático. Puestalia no ve ni guarda los datos de tu tarjeta.</p>
+    </div>
   )
 }
 
@@ -33,7 +28,7 @@ export function Cancel() {
   if (step === 'idle') return <button className="btn ghost" onClick={() => setStep('confirm')}>Cancelar suscripción</button>
   return (
     <div className="form">
-      <p>Se cancela el débito mensual y perdés el acceso Premium. ¿Confirmás?</p>
+      <p>Se cancela el débito mensual de la suscripción vieja. Si tenés un pase de 30 días, lo seguís teniendo. ¿Confirmás?</p>
       <button className="btn" disabled={step === 'busy'} onClick={async () => {
         setStep('busy')
         const r = await post('/api/subscribe/cancel')

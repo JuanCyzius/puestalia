@@ -31,6 +31,8 @@ export type Job = JobDraft & {
   expires_at: string
   status: 'active' | 'expired'
   fingerprint: string
+  /** Abierto gratis desde el principio (se compartió en LinkedIn). */
+  open_free?: boolean | null
 }
 
 export type Filters = { q?: string; cat?: string; mod?: string; exp?: string; jor?: string; dir?: string }
@@ -54,5 +56,11 @@ export const EXPERIENCES: Record<Experience, string> = {
 }
 export const SCHEDULES = ['Tiempo completo', 'Medio tiempo', 'Por turnos', 'Freelance', 'Pasantía']
 
-export const FREE_PER_DAY = 8
+/** En el plan gratis, cada aviso se abre esta cantidad de horas después de publicado. Premium lo ve al instante. */
+export const FREE_DELAY_HOURS = 72
+export const FREE_DELAY_DAYS = FREE_DELAY_HOURS / 24
+/** Cuándo se abre gratis un aviso. Los que se compartieron en LinkedIn quedan abiertos desde el principio. */
+export const freeAt = (j: { published_at: string; open_free?: boolean | null }) =>
+  j.open_free ? new Date(j.published_at) : new Date(new Date(j.published_at).getTime() + FREE_DELAY_HOURS * 3600000)
+export const isFreeNow = (j: { published_at: string; open_free?: boolean | null }) => freeAt(j).getTime() <= Date.now()
 export const DAYS_LIVE = 30

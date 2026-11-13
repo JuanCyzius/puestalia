@@ -26,9 +26,9 @@ export function linkedinPost(j: J, site: string) {
     cut(j.description.replace(/\s+/g, ' ').trim(), 320),
     ...(reqs.length ? ['', 'Qué piden', ...reqs.map((r) => '▪️ ' + cut(r, 110))] : []),
     '',
-    `👉 Ficha completa y cómo postularte: ${site}/empleos/${j.id}`,
+    `👉 Ficha completa y cómo postularte, gratis: ${site}/empleos/${j.id}`,
     '',
-    'Publicamos avisos nuevos todos los días. Seguinos para no perderte ninguno.',
+    'Publicamos avisos nuevos todos los días. Instalá la app y te llegan al celular.',
     '',
     [...new Set(tags)].join(' '),
   ].join('\n')

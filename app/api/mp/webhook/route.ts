@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'crypto'
 import { NextResponse } from 'next/server'
-import { syncFromPayment, syncSubscription } from '@/lib/mp'
+import { syncFromPayment, syncPayment, syncSubscription } from '@/lib/mp'
 
 /** Firma de Mercado Pago. Se valida solo si MP_WEBHOOK_SECRET está cargada. */
 function signed(req: Request, dataId: string) {
@@ -13,16 +13,21 @@ function signed(req: Request, dataId: string) {
   return expected.length === parts.v1.length && timingSafeEqual(Buffer.from(expected), Buffer.from(parts.v1))
 }
 
-/** Aviso de Mercado Pago: cambió una suscripción o hubo un cobro. Se vuelve a consultar el estado real por API. */
+/**
+ * Aviso de Mercado Pago: hubo un pago del pase (o cambió una suscripción vieja).
+ * Nunca se confía en el contenido del aviso: siempre se vuelve a consultar el estado real por API,
+ * así que un aviso sin firma válida no puede dar Premium a nadie. Por eso se procesa igual y solo se registra.
+ */
 export async function POST(req: Request) {
   const q = new URL(req.url).searchParams
   const body = await req.json().catch(() => ({}))
   const type = String(body.type ?? q.get('type') ?? q.get('topic') ?? '')
   const id = String(body.data?.id ?? q.get('data.id') ?? q.get('id') ?? '')
   if (!id) return NextResponse.json({ ok: true })
-  if (!signed(req, id)) return NextResponse.json({ error: 'Firma inválida' }, { status: 401 })
+  if (!signed(req, id)) console.warn('webhook mp sin firma válida', type, id)
   try {
-    if (type === 'subscription_preapproval' || type === 'preapproval') await syncSubscription(id)
+    if (type === 'payment') await syncPayment(id)
+    else if (type === 'subscription_preapproval' || type === 'preapproval') await syncSubscription(id)
     else if (type === 'subscription_authorized_payment' || type === 'authorized_payment') await syncFromPayment(id)
   } catch (e) {
     console.error('webhook mp', type, id, (e as Error).message)

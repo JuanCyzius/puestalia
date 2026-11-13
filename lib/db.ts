@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { DAYS_LIVE, FREE_PER_DAY, type Filters, type Job, type JobDraft } from './types'
+import { DAYS_LIVE, type Filters, type Job, type JobDraft } from './types'
 import { seedJobs } from './seed'
 
 const url = process.env.SUPABASE_URL
@@ -58,12 +58,11 @@ export async function listJobs(f: Filters = {}): Promise<Job[]> {
 }
 
 /** Los avisos que cualquiera puede abrir sin pagar: los 8 más recientes. */
-export async function freeIds(): Promise<Set<string>> {
-  if (!sb) return new Set((await listJobs()).slice(0, FREE_PER_DAY).map((j) => j.id))
-  const { data, error } = await sb.from('jobs').select('id').eq('status', 'active')
-    .gt('expires_at', new Date().toISOString()).lte('published_at', new Date().toISOString()).order('published_at', { ascending: false }).limit(FREE_PER_DAY)
+/** Deja un aviso abierto gratis desde ya (se usa al compartirlo en LinkedIn). */
+export async function setOpenFree(id: string) {
+  if (!sb) { const j = mem().find((x) => x.id === id); if (j) j.open_free = true; return }
+  const { error } = await sb.from('jobs').update({ open_free: true }).eq('id', id)
   if (error) throw new Error(error.message)
-  return new Set(data.map((r) => r.id as string))
 }
 
 export async function getJob(id: string): Promise<Job | null> {
@@ -134,9 +133,61 @@ export async function saveSub(s: Sub) {
   if (error) throw new Error(error.message)
 }
 
-/** Premium = Mercado Pago informa la suscripción como autorizada. */
+// ---------- Etapa 3: pase de 30 días (pago único) ----------
+
+export const PASS_DAYS = 30
+export type Pass = { mp_payment_id: string; user_id: string; status: string; amount: number | null; starts_at: string | null; ends_at: string | null }
+
+export async function getPasses(userId: string): Promise<Pass[]> {
+  if (!sb) return []
+  const { data, error } = await sb.from('passes').select('*').eq('user_id', userId).order('updated_at', { ascending: false })
+  if (error) throw new Error(error.message)
+  return (data as Pass[]) ?? []
+}
+
+/** Revisa que la tabla exista antes de mandar a alguien a pagar. */
+export async function passesReady() {
+  if (!sb) return false
+  const { error } = await sb.from('passes').select('mp_payment_id', { head: true, count: 'exact' }).limit(1)
+  return !error
+}
+
+/** Hasta cuándo tiene Premium por pases aprobados (null si no tiene). */
+export async function premiumUntil(userId: string): Promise<Date | null> {
+  const ends = (await getPasses(userId).catch(() => []))
+    .filter((p) => p.status === 'approved' && p.ends_at)
+    .map((p) => new Date(p.ends_at!).getTime())
+  const max = ends.length ? Math.max(...ends) : 0
+  return max > Date.now() ? new Date(max) : null
+}
+
+/**
+ * Guarda el estado de un pago. Si se aprueba por primera vez, suma 30 días:
+ * desde hoy, o desde que termina el pase vigente si todavía le quedan días.
+ */
+export async function savePass(p: { mp_payment_id: string; user_id: string; status: string; amount: number | null; approved_at: string | null }) {
+  if (!sb) return
+  const all = await getPasses(p.user_id)
+  const cur = all.find((x) => x.mp_payment_id === p.mp_payment_id)
+  let starts_at = cur?.starts_at ?? null
+  let ends_at = cur?.ends_at ?? null
+  if (p.status === 'approved' && !ends_at) {
+    const prevEnd = Math.max(0, ...all.filter((x) => x.mp_payment_id !== p.mp_payment_id && x.status === 'approved' && x.ends_at).map((x) => new Date(x.ends_at!).getTime()))
+    const start = Math.max(Date.now(), prevEnd)
+    starts_at = new Date(start).toISOString()
+    ends_at = new Date(start + PASS_DAYS * 86400000).toISOString()
+  }
+  const { error } = await sb.from('passes').upsert(
+    { mp_payment_id: p.mp_payment_id, user_id: p.user_id, status: p.status, amount: p.amount, starts_at, ends_at, updated_at: new Date().toISOString() },
+    { onConflict: 'mp_payment_id' },
+  )
+  if (error) throw new Error(error.message)
+}
+
+/** Premium = pase de 30 días vigente (o una suscripción vieja que siga autorizada). */
 export async function isPremium(userId: string | undefined) {
   if (!userId) return false
+  if (await premiumUntil(userId)) return true
   return (await getSub(userId))?.status === 'authorized'
 }
 
@@ -217,4 +268,91 @@ export async function publishNow(id: string) {
   if (!data || new Date(data.published_at) <= now) return
   const { error } = await sb.from('jobs').update({ published_at: now.toISOString(), expires_at: expiry(now, data.closing_date).toISOString() }).eq('id', id)
   if (error) throw new Error(error.message)
+}
+
+// ---------- Notificaciones al celular ----------
+
+export type PushSub = {
+  endpoint: string; user_id: string; p256dh: string; auth: string
+  cats: string[]; mods: string[]; exps: string[]; created_at: string; last_sent_at: string | null
+}
+
+export async function savePushSub(s: Omit<PushSub, 'created_at' | 'last_sent_at'>) {
+  if (!sb) throw new Error('Las notificaciones necesitan la base de datos conectada.')
+  const { error } = await sb.from('push_subscriptions').upsert(s, { onConflict: 'endpoint' })
+  if (error) throw new Error(error.message)
+}
+
+export async function getPushSub(endpoint: string): Promise<PushSub | null> {
+  if (!sb) return null
+  const { data } = await sb.from('push_subscriptions').select('*').eq('endpoint', endpoint).maybeSingle()
+  return (data as PushSub) ?? null
+}
+
+export async function listPushSubs(userId?: string): Promise<PushSub[]> {
+  if (!sb) return []
+  let q = sb.from('push_subscriptions').select('*')
+  if (userId) q = q.eq('user_id', userId)
+  const { data, error } = await q
+  if (error) throw new Error(error.message)
+  return (data as PushSub[]) ?? []
+}
+
+export async function deletePushSub(endpoint: string, userId?: string) {
+  if (!sb) return
+  let q = sb.from('push_subscriptions').delete().eq('endpoint', endpoint)
+  if (userId) q = q.eq('user_id', userId)
+  await q
+}
+
+export async function markPushSent(endpoint: string, at: Date) {
+  if (!sb) return
+  await sb.from('push_subscriptions').update({ last_sent_at: at.toISOString() }).eq('endpoint', endpoint)
+}
+
+// ---------- Visitas en vivo y métricas del panel ----------
+
+export async function ping(visitor: string, path: string, userId: string | null) {
+  if (!sb) return
+  await sb.from('presence').upsert({ visitor_id: visitor, path: path.slice(0, 120), user_id: userId, last_seen: new Date().toISOString() }, { onConflict: 'visitor_id' })
+}
+
+const cnt = async (q: PromiseLike<{ count: number | null; error: unknown }>) => { const r = await q; return r.error ? null : r.count ?? 0 }
+
+export async function adminStats() {
+  if (!sb) return null
+  const now = Date.now()
+  const iso = (ms: number) => new Date(ms).toISOString()
+  // Medianoche de hoy en Argentina (UTC-3).
+  const ar = new Date(now - 3 * 3600000); ar.setUTCHours(0, 0, 0, 0)
+  const today = ar.getTime() + 3 * 3600000
+  const head = { count: 'exact' as const, head: true }
+  const [live, todayV, week, liveRows, jobsLive, jobsQueued, jobsToday, pushSubs, users, passes] = await Promise.all([
+    cnt(sb.from('presence').select('visitor_id', head).gte('last_seen', iso(now - 2 * 60000))),
+    cnt(sb.from('presence').select('visitor_id', head).gte('last_seen', iso(today))),
+    cnt(sb.from('presence').select('visitor_id', head).gte('last_seen', iso(now - 7 * 86400000))),
+    sb.from('presence').select('path, user_id').gte('last_seen', iso(now - 2 * 60000)).limit(500),
+    cnt(sb.from('jobs').select('id', head).eq('status', 'active').gt('expires_at', iso(now)).lte('published_at', iso(now))),
+    cnt(sb.from('jobs').select('id', head).eq('status', 'active').gt('published_at', iso(now))),
+    cnt(sb.from('jobs').select('id', head).gte('published_at', iso(today)).lte('published_at', iso(now))),
+    cnt(sb.from('push_subscriptions').select('endpoint', head)),
+    sb.auth.admin.listUsers({ page: 1, perPage: 1000 }),
+    sb.from('passes').select('user_id, status, amount, ends_at, updated_at').eq('status', 'approved'),
+  ])
+  const pages: Record<string, number> = {}
+  for (const r of liveRows.data ?? []) pages[r.path || '/'] = (pages[r.path || '/'] ?? 0) + 1
+  const list = users.data?.users ?? []
+  const pv = passes.data ?? []
+  const month = pv.filter((p) => new Date(p.updated_at).getTime() >= now - 30 * 86400000)
+  return {
+    live, liveLogged: (liveRows.data ?? []).filter((r) => r.user_id).length,
+    livePages: Object.entries(pages).sort((a, b) => b[1] - a[1]).slice(0, 6),
+    today: todayV, week,
+    users: (users.data as { total?: number } | null)?.total ?? list.length,
+    usersToday: list.filter((u) => new Date(u.created_at).getTime() >= today).length,
+    premium: new Set(pv.filter((p) => p.ends_at && new Date(p.ends_at).getTime() > now).map((p) => p.user_id)).size,
+    sales30: month.length, revenue30: month.reduce((a, p) => a + Number(p.amount ?? 0), 0),
+    pushSubs, jobsLive, jobsQueued, jobsToday,
+    at: iso(now),
+  }
 }
