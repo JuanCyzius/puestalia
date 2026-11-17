@@ -1,6 +1,6 @@
 'use client'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { CATEGORIES, EXPERIENCES, MODALITIES, SCHEDULES, type Job, type JobDraft } from '@/lib/types'
+import { CATEGORIES, EXPERIENCES, isFreeNow, MODALITIES, SCHEDULES, type Job, type JobDraft } from '@/lib/types'
 import { linkedinPost } from '@/lib/linkedin'
 
 const post = (url: string, body: unknown) =>
@@ -40,6 +40,18 @@ function CopyLinkedin({ job }: { job: Job }) {
       post('/api/jobs', { open_free: job.id }).catch(() => {}) // queda abierto gratis para quien llegue desde LinkedIn
       setDone(true); setTimeout(() => setDone(false), 2000)
     }} title="Copia el texto y deja este aviso abierto gratis">{done ? 'Copiado · abierto gratis' : 'Copiar texto para LinkedIn'}</button>
+  )
+}
+
+/** Saltea los 3 días de espera del plan gratis para este aviso: queda abierto para todos desde ya. */
+function OpenFree({ job, onDone }: { job: Job; onDone?: () => void }) {
+  const [busy, setBusy] = useState(false)
+  if (job.open_free || isFreeNow(job)) return <span className="free-ok">Abierto gratis</span>
+  return (
+    <button className="btn sm ghost" disabled={busy} title="Saltea los 3 días: los usuarios gratis lo ven desde ya"
+      onClick={async () => { setBusy(true); await post('/api/jobs', { open_free: job.id }).catch(() => {}); job.open_free = true; setBusy(false); onDone?.() }}>
+      {busy ? 'Abriendo…' : 'Abrir gratis ya'}
+    </button>
   )
 }
 
@@ -237,6 +249,7 @@ export function Panel() {
           <pre className="li">{linkedinPost(done, location.origin)}</pre>
           <div className="row">
             <CopyLinkedin job={done} />
+            <OpenFree job={done} />
             <a className="btn sm ghost" href={`/empleos/${done.id}`} target="_blank">Ver aviso</a>
             <button className="btn sm" onClick={() => setDone(null)}>Cargar otro</button>
           </div>
@@ -256,6 +269,7 @@ export function Panel() {
                 </div>
                 <div className="row">
                   {queued(j) && <button className="btn sm ghost" onClick={async () => { await post('/api/jobs', { publish_now: j.id }); loadRecent() }}>Publicar ahora</button>}
+                  <OpenFree job={j} onDone={loadRecent} />
                   <CopyLinkedin job={j} />
                 </div>
               </li>

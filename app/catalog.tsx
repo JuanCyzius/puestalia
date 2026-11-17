@@ -2,7 +2,8 @@
 import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { CATEGORIES, DAYS_LIVE, EXPERIENCES, FREE_DELAY_DAYS, MODALITIES, SCHEDULES, type Filters } from '@/lib/types'
-import { ago, left, until } from '@/lib/format'
+import { ago, left } from '@/lib/format'
+import { Countdown } from './countdown'
 
 /** Lo que llega al navegador. En los avisos bloqueados, empresa, ubicación y salario nunca salen del servidor. */
 export type CardData = {
@@ -67,33 +68,48 @@ function Pick({ value, onChange, any, opts, label }: { value?: string; onChange:
 
 function Card({ c, i }: { c: CardData; i: number }) {
   const days = Math.max(0, Math.ceil((new Date(c.expires_at).getTime() - Date.now()) / 86400000))
+  const style = { '--i': Math.min(i, 11) } as React.CSSProperties
+  // Aviso recién llegado (plan gratis): se ve borroso, con la cuenta regresiva hasta que se libera.
+  // Empresa, ubicación y salario no llegan al navegador: lo borroso es un molde, no el dato real.
+  if (!c.open)
+    return (
+      <Link className="card locked" style={style} href={`/empleos/${c.id}`} aria-label={`Aviso recién llegado: ${c.title}. Se libera gratis más adelante; con Premium lo abrís ya.`}>
+        <div className="tags">
+          <span className="tag lock">Recién llegado</span>
+          {c.direct && <span className="tag direct">Mail directo</span>}
+          {c.modality && <span className="tag">{MODALITIES[c.modality]}</span>}
+        </div>
+        <div className="veil" aria-hidden>
+          <h3>{c.title}</h3>
+          <p className="co">Empresa del aviso · Ciudad, provincia</p>
+          <p className="pay">$ 000.000 a $ 000.000</p>
+          <div className="lines"><i /><i /><i /></div>
+        </div>
+        <div className="unlock" aria-hidden>
+          <span className="lbl">Gratis en</span>
+          <Countdown to={c.free_at} />
+          <span className="btn sm">🔓 Desbloquear ya con Premium</span>
+        </div>
+      </Link>
+    )
   const inner = (
     <>
       <div className="tags">
-        {!c.open && <span className="tag lock">Recién llegado</span>}
         {c.direct && <span className="tag direct">Mail directo</span>}
         {c.modality && <span className="tag">{MODALITIES[c.modality]}</span>}
         {c.experience === 'sin_experiencia' && <span className="tag">Sin experiencia</span>}
       </div>
       <h3>{c.title}</h3>
-      {c.open ? (
-        <p className="co">{c.company ?? 'Empresa confidencial'} · {c.location ?? 'Ubicación no informada'}</p>
-      ) : (
-        <p className="co hidden-co" aria-label="Empresa y ubicación visibles con Premium"><i /><i /></p>
-      )}
-      {c.open && c.salary && <p className="pay">{c.salary}</p>}
-      {!c.open && <p className="soon" suppressHydrationWarning>Gratis en {until(c.free_at)} · con Premium, ya</p>}
+      <p className="co">{c.company ?? 'Empresa confidencial'} · {c.location ?? 'Ubicación no informada'}</p>
+      {c.salary && <p className="pay">{c.salary}</p>}
       <div className="life">
         <div className="bar"><span style={{ width: `${Math.min(100, (days / DAYS_LIVE) * 100)}%` }} /></div>
         <div className="meta"><span suppressHydrationWarning>{ago(c.published_at)}</span><span suppressHydrationWarning>{left(c.expires_at)}</span></div>
       </div>
-      <span className="go">{c.open ? 'Ver aviso' : 'Abrir ya con Premium'} <b aria-hidden>→</b></span>
+      <span className="go">Ver aviso <b aria-hidden>→</b></span>
     </>
   )
-  const style = { '--i': Math.min(i, 11) } as React.CSSProperties
-  return c.open
-    ? <Link className="card" style={style} href={`/empleos/${c.id}`}>{inner}</Link>
-    : <Link className="card locked" style={style} href={`/empleos/${c.id}`}>{inner}</Link>
+  return <Link className="card" style={style} href={`/empleos/${c.id}`}>{inner}</Link>
 }
 
 export function Catalog({ cards, initial, premium = false, preset, title, intro }: { cards: CardData[]; initial: Filters; premium?: boolean; preset?: Filters; title?: string; intro?: string }) {
