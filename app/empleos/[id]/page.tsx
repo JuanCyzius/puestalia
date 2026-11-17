@@ -4,8 +4,9 @@ import { notFound } from 'next/navigation'
 import { getJob, isPremium } from '@/lib/db'
 import { getUser } from '@/lib/session'
 import { CATEGORIES, EXPERIENCES, FREE_DELAY_DAYS, freeAt, MODALITIES } from '@/lib/types'
-import { dayHour, dmy, left, until } from '@/lib/format'
+import { dayHour, dmy, left } from '@/lib/format'
 import { Apply } from './apply'
+import { Countdown } from '../../countdown'
 
 export const dynamic = 'force-dynamic'
 type P = { params: Promise<{ id: string }> }
@@ -24,17 +25,37 @@ export default async function JobPage({ params }: P) {
   const fa = freeAt(j)
   const open = fa.getTime() <= Date.now() || (await isPremium((await getUser())?.id))
 
+  // Plan gratis y aviso recién llegado: la ficha se ve borrosa (con datos de molde, nunca los reales)
+  // y encima, la cuenta regresiva hasta que se libera y el botón para desbloquearla ya con Premium.
   if (!open)
     return (
-      <article className="job">
-        <div className="kicker">Recién llegado · Premium</div>
-        <h1>{j.title}</h1>
-        <p className="co">{CATEGORIES[j.category]} · {j.modality ? MODALITIES[j.modality] : 'Modalidad no informada'}{j.experience ? ' · ' + EXPERIENCES[j.experience] : ''}</p>
-        <section className="cta">
-          <h2>Se abre gratis en {until(fa.toISOString())}.</h2>
-          <p>En el plan gratis cada aviso se abre {FREE_DELAY_DAYS} días después de publicado; este, el {dayHour(fa.toISOString())}. Con Premium lo abrís ya, con la empresa, el contacto y cómo postularte. Postularte en los primeros días suele pesar.</p>
-          <Link className="btn" href="/premium">Abrir ya con Premium</Link>
-        </section>
+      <article className="job job-locked">
+        <div className="kicker">Recién llegado · {CATEGORIES[j.category] ?? 'Otros'}</div>
+        <h1 className="blurred" aria-label={j.title}>{j.title}</h1>
+        <div className="locked-wrap">
+          <div className="veil" aria-hidden>
+            <div className="co">Empresa del aviso</div>
+            <dl className="facts">
+              <div><dt>Ubicación</dt><dd>Ciudad, provincia</dd></div>
+              <div><dt>Modalidad</dt><dd>Remoto o presencial</dd></div>
+              <div><dt>Jornada</dt><dd>Full time</dd></div>
+              <div><dt>Horarios</dt><dd>Lunes a viernes de 9 a 18</dd></div>
+              <div><dt>Salario</dt><dd>$ 000.000</dd></div>
+              <div><dt>Experiencia</dt><dd>Sin experiencia</dd></div>
+            </dl>
+            <h2>El puesto</h2>
+            <div className="lines"><i /><i /><i /><i /><i /></div>
+            <h2>Requisitos</h2>
+            <div className="lines"><i /><i /><i /></div>
+          </div>
+          <section className="unlock-card">
+            <p className="lbl">Este aviso se libera gratis en</p>
+            <p className="big"><Countdown to={fa.toISOString()} /></p>
+            <p>En el plan gratis, cada aviso se abre {FREE_DELAY_DAYS} días después de publicado; este, el {dayHour(fa.toISOString())}. Con Premium lo ves ya: la empresa, el contacto y cómo postularte. Postularte en los primeros días suele pesar.</p>
+            <Link className="btn" href="/premium">🔓 Desbloquear ya con Premium</Link>
+            <p className="note">Pase de 30 días, pago único, sin débito automático.</p>
+          </section>
+        </div>
       </article>
     )
 
