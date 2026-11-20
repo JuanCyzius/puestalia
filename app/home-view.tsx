@@ -4,6 +4,8 @@ import { PRICE } from '@/lib/mp'
 import { getUser } from '@/lib/session'
 import { FREE_DELAY_DAYS, freeAt, type Filters } from '@/lib/types'
 import { Catalog, type CardData } from './catalog'
+import { TrustBand } from './trust'
+import { money, SERVICES } from '@/lib/services'
 
 // Es una secuencia real: lo que hace la persona, en orden.
 const STEPS = [
@@ -41,6 +43,13 @@ export async function HomeView({ f, preset, landing, ld }: { f: Filters; preset?
       {ld && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(LD) }} />}
       <Catalog cards={cards} premium={premium} preset={preset} title={landing?.h1} intro={landing?.intro}
         initial={{ q: f.q, cat: f.cat ?? preset?.cat, mod: f.mod ?? preset?.mod, exp: f.exp ?? preset?.exp, jor: f.jor, dir: f.dir }} />
+
+      <TrustBand />
+
+      <section className="svc-teaser" aria-label="Servicios">
+        <Link href="/servicios#cv-express"><b>Te hacemos el CV</b><span>Reescrito, claro y apuntado al puesto que buscás.</span><em>Desde {money(SERVICES['cv-express'].price)} →</em></Link>
+        <Link href="/servicios#acompanamiento"><b>Acompañamiento 30 días</b><span>Plan de búsqueda, tips semanales, revisión de mails y simulacro de entrevista. Premium incluido.</span><em>{money(SERVICES.acompanamiento.price)} →</em></Link>
+      </section>
 
       <section className="how">
         <h2>Cómo se usa</h2>

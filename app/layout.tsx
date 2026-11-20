@@ -42,15 +42,22 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <header className="top">
           <Link href="/" className="logo" aria-label="Puestalia, inicio"><img src="/logo.png" alt="Puestalia" width={152} height={38} /></Link>
           <nav>
-            <Link href="/trabajo-remoto">Remoto</Link>
-            <Link href="/empleos-sin-experiencia">Sin experiencia</Link>
-            <Link href="/empleos-administrativos">Administración</Link>
+            <Link href="/">Inicio</Link>
+            <Link href="/empleos">Puestos de trabajo</Link>
+            <Link href="/servicios">CV y acompañamiento</Link>
+            <Link href="/quienes-somos">Quiénes somos</Link>
             {isAdminEmail(user?.email) && <Link href="/admin" className="acct">Admin</Link>}
             <InstallButton className="acct install" />
             <Link href={user ? '/cuenta' : '/ingresar'} className="acct">{user ? 'Mi cuenta' : 'Ingresar'}</Link>
             <Link href="/premium" className="btn sm">Premium</Link>
           </nav>
         </header>
+        <nav className="subnav" aria-label="Secciones">
+          <Link href="/">Inicio</Link>
+          <Link href="/empleos">Puestos</Link>
+          <Link href="/servicios">CV y acompañamiento</Link>
+          <Link href="/quienes-somos">Quiénes somos</Link>
+        </nav>
         <main>{children}</main>
         <footer className="foot">
           <p><b>Puestalia · Oportunidades todos los días.</b> Difunde avisos de empleo publicados por empresas y consultoras. No somos el empleador ni intervenimos en la selección.</p>
@@ -60,6 +67,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <Link href="/empleos-sin-experiencia">Empleos sin experiencia</Link>
             <Link href="/empleos-administrativos">Empleos administrativos</Link>
             <Link href="/premium">Premium</Link>
+            <Link href="/servicios">CV y acompañamiento</Link>
+            <Link href="/quienes-somos">Quiénes somos</Link>
+            <Link href="/consegui-trabajo">¿Conseguiste trabajo? Contanos</Link>
           </nav>
         </footer>
       </body>

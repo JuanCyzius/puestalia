@@ -1,4 +1,5 @@
-import { savePass, saveSub } from './db'
+import { getOrder, markOrderPaid, savePass, saveSub, type Order } from './db'
+import { SERVICES, type ServiceId } from './services'
 
 const API = 'https://api.mercadopago.com'
 export const PRICE = Number(process.env.MP_PRICE) || 4900
@@ -55,13 +56,41 @@ export async function cancelSubscription(preapprovalId: string) {
   return syncSubscription(preapprovalId)
 }
 
-/** Pregunta a Mercado Pago el estado real de un pago del pase y lo guarda. */
+/** Crea el pago único de un servicio (CV o acompañamiento) para un pedido ya guardado. */
+export async function createServicePayment(o: Order, site: string): Promise<string> {
+  const sv = SERVICES[o.product as ServiceId]
+  const p = await call('/checkout/preferences', {
+    method: 'POST',
+    body: JSON.stringify({
+      items: [{ id: o.product, title: 'Puestalia · ' + sv.name, description: sv.tagline, quantity: 1, unit_price: Number(o.price), currency_id: 'ARS' }],
+      external_reference: o.user_id,
+      metadata: { kind: 'servicio', order_id: o.id, product: o.product },
+      payer: { email: o.email },
+      back_urls: { success: site + '/cuenta?pedido=ok', pending: site + '/cuenta?pedido=pendiente', failure: site + '/cuenta?pedido=error' },
+      auto_return: 'approved',
+      notification_url: site + '/api/mp/webhook?source_news=webhooks',
+      statement_descriptor: 'PUESTALIA',
+    }),
+  })
+  return p.init_point
+}
+
+/** Pregunta a Mercado Pago el estado real de un pago (pase o servicio) y lo guarda. */
 export async function syncPayment(paymentId: string, expectUser?: string) {
   const p = await call('/v1/payments/' + encodeURIComponent(paymentId))
   const user = String(p.external_reference ?? '')
   if (!UUID.test(user) || (expectUser && user !== expectUser)) return null
   // Solo cuentan los pagos creados por Puestalia para el pase (la marca la pone el servidor al crear el pago).
-  if (p.metadata?.kind !== 'pase30' || p.currency_id !== 'ARS') return null
+  if (p.currency_id !== 'ARS') return null
+  if (p.metadata?.kind === 'servicio') {
+    // El pedido tiene que ser de esta misma persona y el monto, el del pedido.
+    const o = await getOrder(String(p.metadata.order_id ?? ''))
+    if (!o || o.user_id !== user || Number(p.transaction_amount) < Number(o.price)) return null
+    if (p.status === 'approved' && (await markOrderPaid(o.id, String(p.id))) && SERVICES[o.product as ServiceId]?.pass)
+      await savePass({ mp_payment_id: 'svc-' + p.id, user_id: user, status: 'approved', amount: 0, approved_at: p.date_approved ?? null })
+    return p.status as string
+  }
+  if (p.metadata?.kind !== 'pase30') return null
   await savePass({ mp_payment_id: String(p.id), user_id: user, status: p.status, amount: p.transaction_amount ?? null, approved_at: p.date_approved ?? null })
   return p.status as string
 }
