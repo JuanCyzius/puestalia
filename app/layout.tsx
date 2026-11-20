@@ -44,6 +44,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <nav>
             <Link href="/">Inicio</Link>
             <Link href="/empleos">Puestos de trabajo</Link>
+            <Link href="/gratis">Gratis</Link>
             <Link href="/servicios">CV y acompañamiento</Link>
             <Link href="/quienes-somos">Quiénes somos</Link>
             {isAdminEmail(user?.email) && <Link href="/admin" className="acct">Admin</Link>}
@@ -55,6 +56,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <nav className="subnav" aria-label="Secciones">
           <Link href="/">Inicio</Link>
           <Link href="/empleos">Puestos</Link>
+          <Link href="/gratis">Gratis</Link>
           <Link href="/servicios">CV y acompañamiento</Link>
           <Link href="/quienes-somos">Quiénes somos</Link>
         </nav>

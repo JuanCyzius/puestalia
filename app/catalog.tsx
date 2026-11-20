@@ -112,7 +112,7 @@ function Card({ c, i }: { c: CardData; i: number }) {
   return <Link className="card" style={style} href={`/empleos/${c.id}`}>{inner}</Link>
 }
 
-export function Catalog({ cards, initial, premium = false, preset, title, intro }: { cards: CardData[]; initial: Filters; premium?: boolean; preset?: Filters; title?: string; intro?: string }) {
+export function Catalog({ cards, initial, premium = false, preset, title, intro, path }: { cards: CardData[]; initial: Filters; premium?: boolean; preset?: Filters; title?: string; intro?: string; path?: string }) {
   const [f, setF] = useState<Filters>(initial)
   const set = (k: keyof Filters) => (v: string) => setF((p) => ({ ...p, [k]: v || undefined }))
   const active = Object.values(f).some(Boolean)
@@ -122,10 +122,10 @@ export function Catalog({ cards, initial, premium = false, preset, title, intro 
     // En una página por tema (/trabajo-remoto) el filtro de la página no se repite en la dirección.
     const keep = Object.entries(f).filter(([k, v]) => v && preset?.[k as keyof Filters] !== v) as [string, string][]
     const presetOn = !!preset && Object.entries(preset).every(([k, v]) => f[k as keyof Filters] === v)
-    const base = presetOn ? location.pathname : '/'
+    const base = presetOn ? location.pathname : (path ?? '/')
     const qs = new URLSearchParams(presetOn ? keep : (Object.entries(f).filter(([, v]) => v) as [string, string][])).toString()
     history.replaceState(null, '', qs ? base + '?' + qs : base)
-  }, [f, preset])
+  }, [f, preset, path])
 
   const list = useMemo(() => {
     const words = norm(f.q ?? '').split(/\s+/).filter(Boolean)
@@ -178,8 +178,13 @@ export function Catalog({ cards, initial, premium = false, preset, title, intro 
         <div className="grid" key={JSON.stringify(f)}>{list.map((c, i) => <Card key={c.id} c={c} i={i} />)}</div>
       ) : (
         <div className="empty">
-          <p>No hay avisos vigentes con esa combinación.</p>
-          <button className="btn" onClick={() => setF({})}>Ver todos los avisos</button>
+          {path === '/gratis' && !Object.values(f).some(Boolean) ? (
+            <><p>Todavía no hay avisos liberados gratis. Los nuevos se abren 3 días después de publicados.</p>
+            <Link className="btn" href="/empleos">Ver los recién llegados</Link></>
+          ) : (
+            <><p>No hay avisos vigentes con esa combinación.</p>
+            <button className="btn" onClick={() => setF({})}>Ver todos los avisos</button></>
+          )}
         </div>
       )}
       {!premium && <p className="fine">En el plan gratis, cada aviso se abre {FREE_DELAY_DAYS} días después de publicado. Con Premium lo ves apenas entra.</p>}
