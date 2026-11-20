@@ -25,8 +25,10 @@ const LD = {
 }
 
 /** El inicio, reutilizable: las páginas por tema lo muestran con el buscador ya filtrado y un título propio. */
-export async function HomeView({ f, preset, landing, ld }: { f: Filters; preset?: Filters; landing?: { h1: string; intro: string }; ld?: boolean }) {
-  const [jobs, user] = await Promise.all([listJobs(), getUser()])
+export async function HomeView({ f, preset, landing, ld, onlyFree, path }: { f: Filters; preset?: Filters; landing?: { h1: string; intro: string }; ld?: boolean; onlyFree?: boolean; path?: string }) {
+  const [all, user] = await Promise.all([listJobs(), getUser()])
+  // Sección Gratis: solo los avisos que ya se liberaron para todos.
+  const jobs = onlyFree ? all.filter((j) => freeAt(j).getTime() <= Date.now()) : all
   const premium = await isPremium(user?.id)
   const cards: CardData[] = jobs.map((j) => {
     const free_at = freeAt(j)
@@ -41,7 +43,7 @@ export async function HomeView({ f, preset, landing, ld }: { f: Filters; preset?
   return (
     <>
       {ld && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(LD) }} />}
-      <Catalog cards={cards} premium={premium} preset={preset} title={landing?.h1} intro={landing?.intro}
+      <Catalog cards={cards} premium={premium} preset={preset} path={path} title={landing?.h1} intro={landing?.intro}
         initial={{ q: f.q, cat: f.cat ?? preset?.cat, mod: f.mod ?? preset?.mod, exp: f.exp ?? preset?.exp, jor: f.jor, dir: f.dir }} />
 
       <TrustBand />

@@ -10,5 +10,5 @@ export const metadata: Metadata = {
 }
 
 export default async function Empleos({ searchParams }: { searchParams: Promise<Filters> }) {
-  return <HomeView f={await searchParams} landing={{ h1: 'Puestos de trabajo', intro: 'Todos los avisos vigentes, del más nuevo al más viejo. Filtrá por modalidad, rubro y experiencia.' }} />
+  return <HomeView f={await searchParams} path="/empleos" landing={{ h1: 'Puestos de trabajo', intro: 'Todos los avisos vigentes, del más nuevo al más viejo. Filtrá por modalidad, rubro y experiencia.' }} />
 }

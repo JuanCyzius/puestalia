@@ -15,6 +15,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${site}/`, lastModified: now, changeFrequency: 'hourly', priority: 1 },
     ...Object.keys(LANDINGS).map((slug) => ({ url: `${site}/${slug}`, lastModified: now, changeFrequency: 'daily' as const, priority: 0.9 })),
     { url: `${site}/premium`, changeFrequency: 'monthly', priority: 0.5 },
+    { url: `${site}/gratis`, lastModified: now, changeFrequency: 'daily', priority: 0.9 },
     { url: `${site}/servicios`, changeFrequency: 'monthly', priority: 0.7 },
     { url: `${site}/quienes-somos`, changeFrequency: 'yearly', priority: 0.4 },
     ...jobs.filter(isFreeNow).map((j) => ({ url: `${site}/empleos/${j.id}`, lastModified: new Date(j.published_at), changeFrequency: 'weekly' as const, priority: 0.7 })),
