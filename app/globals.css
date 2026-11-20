@@ -205,3 +205,40 @@ main { max-width:1080px; margin:0 auto; padding:0 18px 56px; }
 .hero .intro { color:#d9e2e8; max-width:62ch; margin:18px 0 0; font-size:15px; line-height:1.55; }
 .foot nav { display:flex; flex-wrap:wrap; gap:6px 16px; margin-top:10px; } .foot nav a { color:inherit; }
 .hero p.sentence { font-family:var(--display); font-weight:800; letter-spacing:-.02em; color:#fff; }
+
+/* Franja de confianza y servicios */
+.trust { margin-top:40px; background:#fff; border:1px solid var(--line); border-radius:24px; padding:clamp(18px,3vw,28px); }
+.trust dl { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:18px; margin:0; }
+.trust dt { font:800 clamp(26px,4vw,34px)/1.1 var(--display); color:var(--ink); }
+.trust dd { margin:4px 0 0; color:var(--mute); font-size:14px; }
+.trust-cta { margin-top:18px; font-size:14px; color:var(--mute); } .trust-cta a { color:var(--ink); font-weight:600; text-decoration:underline; text-underline-offset:3px; }
+.page { max-width:960px; margin:0 auto; padding-top:12px; }
+.page > h1 { font-size:clamp(30px,5vw,46px); margin:10px 0 12px; } .page .lead { font-size:18px; color:var(--mute); max-width:62ch; }
+.page h2 { font-size:clamp(22px,3.4vw,28px); margin:44px 0 14px; }
+.plans { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:14px; margin-top:28px; }
+.plan { background:#fff; border:1px solid var(--line); border-radius:20px; padding:22px; display:flex; flex-direction:column; gap:12px; position:relative; }
+.plan.featured { border:2px solid var(--acc); box-shadow:0 14px 36px rgba(23,44,60,.08); }
+.plan .badge { position:absolute; top:-12px; left:20px; background:var(--acc); color:var(--ink); font:600 12px var(--body); padding:4px 10px; border-radius:999px; }
+.plan h3 { font-size:21px; } .plan .price { font:800 32px/1 var(--display); } .plan .price small { font:500 14px var(--body); color:var(--mute); }
+.plan .tag-line { color:var(--mute); font-size:15px; } .plan ul { margin:0; padding-left:18px; display:grid; gap:6px; font-size:15px; } .plan .btn { margin-top:auto; }
+.plan .when { font:500 12px var(--mono); color:var(--mute); text-transform:uppercase; letter-spacing:.08em; }
+.steps3 { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; padding:0; list-style:none; counter-reset:s; }
+.steps3 li { counter-increment:s; background:#fff; border:1px solid var(--line); border-radius:16px; padding:18px; }
+.steps3 li::before { content:counter(s); display:inline-grid; place-items:center; width:28px; height:28px; border-radius:50%; background:var(--ink); color:#fff; font:600 14px var(--mono); margin-bottom:8px; }
+.faq details { background:#fff; border:1px solid var(--line); border-radius:14px; padding:14px 18px; margin-bottom:8px; } .faq summary { font-weight:600; cursor:pointer; } .faq p { margin-top:8px; color:var(--mute); }
+.honest { margin-top:22px; font-size:14px; color:var(--mute); border-left:3px solid var(--acc); padding-left:12px; }
+.svc-teaser { margin-top:40px; display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; }
+.svc-teaser a { background:#fff; border:1px solid var(--line); border-radius:20px; padding:20px; display:grid; gap:6px; transition:transform .15s, border-color .15s; }
+.svc-teaser a:hover { transform:translateY(-3px); border-color:var(--soft); } .svc-teaser b { font:700 19px var(--display); } .svc-teaser span { color:var(--mute); font-size:15px; } .svc-teaser em { font:600 15px var(--body); font-style:normal; }
+.stories { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:12px; } .stories blockquote { margin:0; background:#fff; border:1px solid var(--line); border-radius:16px; padding:18px; } .stories cite { display:block; margin-top:8px; font-style:normal; font-size:14px; color:var(--mute); }
+/* En celular, las secciones van en una fila deslizable debajo del logo */
+.subnav { display:none; }
+@media (max-width:640px){ .subnav { display:flex; gap:8px; overflow-x:auto; padding:0 18px 10px; scrollbar-width:none; } .subnav::-webkit-scrollbar { display:none; } .subnav a { flex:0 0 auto; font-size:14px; background:#fff; border:1px solid var(--line); border-radius:999px; padding:7px 12px; } }
+.orders { list-style:none; padding:0; margin:0; display:grid; gap:8px; } .orders li { background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px 14px; font-size:15px; }
+.st { font:500 12px var(--mono); padding:2px 8px; border-radius:6px; background:var(--line); } .st-paid, .st-in_progress { background:#f9eeda; } .st-delivered { background:#e5f4e4; color:var(--ok); }
+/* Panel: pedidos e historias */
+.adm-box { max-width:1080px; margin:0 auto 28px; background:#fff; border:1px solid var(--line); border-radius:20px; padding:18px clamp(16px,3vw,28px); display:grid; gap:12px; }
+.adm-head { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; } .adm-head h2 { font-size:20px; }
+.pill { font:600 12px var(--body); background:var(--acc); color:var(--ink); border-radius:999px; padding:3px 10px; vertical-align:middle; margin-left:6px; }
+.order { border-top:1px solid var(--line); padding-top:12px; display:grid; gap:6px; font-size:15px; } .order a { text-decoration:underline; text-underline-offset:3px; }
+.order .notes { color:var(--mute); white-space:pre-wrap; } .order .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }

@@ -356,3 +356,116 @@ export async function adminStats() {
     at: iso(now),
   }
 }
+
+// ---------- Servicios: pedidos de CV y acompañamiento ----------
+
+export type Order = {
+  id: string; user_id: string; email: string; name: string; phone: string | null; product: string; price: number
+  target: string | null; notes: string | null; cv_path: string | null; status: string; mp_payment_id: string | null
+  created_at: string; paid_at: string | null; delivered_at: string | null
+}
+
+export async function ordersReady() {
+  if (!sb) return false
+  const { error } = await sb.from('orders').select('id', { head: true, count: 'exact' }).limit(1)
+  return !error
+}
+
+export async function createOrder(o: Pick<Order, 'user_id' | 'email' | 'name' | 'phone' | 'product' | 'price' | 'target' | 'notes' | 'cv_path'>): Promise<Order> {
+  if (!sb) throw new Error('Los pedidos necesitan la base de datos conectada.')
+  const { data, error } = await sb.from('orders').insert(o).select('*').single()
+  if (error) throw new Error(error.message)
+  return data as Order
+}
+
+export async function getOrder(id: string): Promise<Order | null> {
+  if (!sb) return null
+  const { data } = await sb.from('orders').select('*').eq('id', id).maybeSingle()
+  return (data as Order) ?? null
+}
+
+export async function listOrders(userId?: string): Promise<Order[]> {
+  if (!sb) return []
+  let q = sb.from('orders').select('*').order('created_at', { ascending: false }).limit(200)
+  if (userId) q = q.eq('user_id', userId)
+  const { data, error } = await q
+  if (error) throw new Error(error.message)
+  return (data as Order[]) ?? []
+}
+
+/** Marca un pedido como pagado (solo la primera vez). Devuelve true si cambió. */
+export async function markOrderPaid(id: string, paymentId: string) {
+  if (!sb) return false
+  const { data, error } = await sb.from('orders').update({ status: 'paid', paid_at: new Date().toISOString(), mp_payment_id: paymentId })
+    .eq('id', id).eq('status', 'pending').select('id')
+  if (error) throw new Error(error.message)
+  return (data?.length ?? 0) > 0
+}
+
+export async function setOrderStatus(id: string, status: 'in_progress' | 'delivered' | 'cancelled') {
+  if (!sb) return
+  const extra = status === 'delivered' ? { delivered_at: new Date().toISOString() } : {}
+  const { error } = await sb.from('orders').update({ status, ...extra }).eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
+/** Guarda el CV que sube la persona en la carpeta privada "cvs". */
+export async function uploadCv(userId: string, file: File) {
+  if (!sb) throw new Error('Sin base de datos.')
+  const ext = (file.name.split('.').pop() || 'pdf').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 5)
+  const path = `${userId}/${Date.now()}.${ext}`
+  const { error } = await sb.storage.from('cvs').upload(path, Buffer.from(await file.arrayBuffer()), { contentType: file.type || 'application/octet-stream' })
+  if (error) throw new Error(error.message)
+  return path
+}
+
+/** Link temporal (10 minutos) para descargar un CV desde el panel. */
+export async function cvUrl(path: string) {
+  if (!sb) return null
+  const { data } = await sb.storage.from('cvs').createSignedUrl(path, 600)
+  return data?.signedUrl ?? null
+}
+
+// ---------- "Conseguí trabajo": historias reales ----------
+
+export type Hire = { id: string; user_id: string | null; name: string; role: string; company: string | null; testimonial: string | null; can_publish: boolean; approved: boolean; created_at: string }
+
+export async function addHire(h: Pick<Hire, 'user_id' | 'name' | 'role' | 'company' | 'testimonial' | 'can_publish'>) {
+  if (!sb) throw new Error('Sin base de datos.')
+  const { error } = await sb.from('hires').insert(h)
+  if (error) throw new Error(error.message)
+}
+
+export async function listHires(onlyPublic = false): Promise<Hire[]> {
+  if (!sb) return []
+  let q = sb.from('hires').select('*').order('created_at', { ascending: false }).limit(200)
+  if (onlyPublic) q = q.eq('approved', true).eq('can_publish', true)
+  const { data } = await q
+  return (data as Hire[]) ?? []
+}
+
+export async function approveHire(id: string, approved: boolean) {
+  if (!sb) return
+  await sb.from('hires').update({ approved }).eq('id', id)
+}
+
+/**
+ * Números reales para mostrar en la web. Nada inventado: si un número todavía es chico, la página no lo muestra.
+ */
+export async function publicStats() {
+  const now = new Date().toISOString()
+  if (!sb) {
+    const jobs = mem()
+    return { total: jobs.length, week: jobs.length, live: jobs.length, directPct: Math.round((jobs.filter((j) => j.contact_email).length / Math.max(1, jobs.length)) * 100), hires: 0 }
+  }
+  const head = { count: 'exact' as const, head: true }
+  const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString()
+  const [total, week, live, liveDirect, hires] = await Promise.all([
+    cnt(sb.from('jobs').select('id', head).lte('published_at', now)),
+    cnt(sb.from('jobs').select('id', head).gte('published_at', weekAgo).lte('published_at', now)),
+    cnt(sb.from('jobs').select('id', head).eq('status', 'active').gt('expires_at', now).lte('published_at', now)),
+    cnt(sb.from('jobs').select('id', head).eq('status', 'active').gt('expires_at', now).lte('published_at', now).not('contact_email', 'is', null)),
+    cnt(sb.from('hires').select('id', head)),
+  ])
+  return { total: total ?? 0, week: week ?? 0, live: live ?? 0, directPct: live ? Math.round(((liveDirect ?? 0) / live) * 100) : 0, hires: hires ?? 0 }
+}
