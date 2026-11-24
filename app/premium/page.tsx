@@ -17,12 +17,14 @@ export default async function Premium() {
       <p className="kicker">Puestalia Premium</p>
       <h1>Cada oferta apenas entra, no {FREE_DELAY_DAYS} días después.</h1>
       <p className="co">{mpReady() ? 'Pagás una vez y tenés 30 días. Sin débito automático.' : 'Estamos por abrir los pagos. Dejá tu mail y te avisamos primero.'}</p>
+      <p className="perday-big">Todo el mes por <b>menos que dos cafés</b> en un bar porteño: unos <b>${Math.ceil(PRICE / 30)} por día</b>.</p>
       <dl className="facts">
         <div><dt>Con Premium</dt><dd>Ves cada aviso en el momento en que lo publicamos, y te avisamos al celular</dd></div>
         <div><dt>Gratis</dt><dd>Cada aviso se abre {FREE_DELAY_DAYS} días (72 horas) después de publicado</dd></div>
         <div><dt>Precio</dt><dd>{price} por 30 días, pago único</dd></div>
         <div><dt>Renovación</dt><dd>No se renueva sola: si querés seguir, volvés a pagar</dd></div>
       </dl>
+      <p className="why">¿Por qué importa? Muchos reclutadores leen primero los CV que llegan en los primeros días y, cuando ya tienen candidatos, cierran la búsqueda. Llegar antes no te garantiza el puesto, pero te pone adelante en la fila.</p>
       {premium ? (
         <p><Link className="btn" href="/">Ya tenés Premium: ver los avisos</Link></p>
       ) : mpReady() ? (

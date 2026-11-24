@@ -66,7 +66,7 @@ function Pick({ value, onChange, any, opts, label }: { value?: string; onChange:
   )
 }
 
-function Card({ c, i }: { c: CardData; i: number }) {
+export function Card({ c, i }: { c: CardData; i: number }) {
   const days = Math.max(0, Math.ceil((new Date(c.expires_at).getTime() - Date.now()) / 86400000))
   const style = { '--i': Math.min(i, 11) } as React.CSSProperties
   // Aviso recién llegado (plan gratis): se ve borroso, con la cuenta regresiva hasta que se libera.

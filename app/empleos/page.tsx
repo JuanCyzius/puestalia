@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
   title: 'Puestos de trabajo',
   description: 'Todos los puestos de trabajo vigentes en Puestalia: remotos, administrativos y sin experiencia, revisados y con la vigencia a la vista.',
-  alternates: { canonical: '/' },
+  alternates: { canonical: '/empleos' },
 }
 
 export default async function Empleos({ searchParams }: { searchParams: Promise<Filters> }) {
