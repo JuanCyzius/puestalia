@@ -1,8 +1,8 @@
 import Link from 'next/link'
-import { isPremium } from '@/lib/db'
+import { isPremium, listJobs } from '@/lib/db'
 import { mpReady, PRICE } from '@/lib/mp'
 import { getUser } from '@/lib/session'
-import { FREE_DELAY_DAYS } from '@/lib/types'
+import { FREE_DELAY_DAYS, freeAt } from '@/lib/types'
 import { Waitlist } from './waitlist'
 
 export const metadata = { title: 'Premium' }
@@ -11,12 +11,17 @@ export const dynamic = 'force-dynamic'
 export default async function Premium() {
   const user = await getUser()
   const premium = await isPremium(user?.id)
+  const jobs = await listJobs().catch(() => [])
+  const locked = jobs.filter((j) => freeAt(j).getTime() > Date.now()).length
   const price = '$' + PRICE.toLocaleString('es-AR')
   return (
     <article className="job">
       <p className="kicker">Puestalia Premium</p>
       <h1>Cada oferta apenas entra, no {FREE_DELAY_DAYS} días después.</h1>
       <p className="co">{mpReady() ? 'Pagás una vez y tenés 30 días. Sin débito automático.' : 'Estamos por abrir los pagos. Dejá tu mail y te avisamos primero.'}</p>
+      {jobs.length > 0 && (
+        <p className="total-big">Con Premium accedés a <b>los {jobs.length} puestos vigentes</b>{locked > 0 ? <>: {jobs.length - locked} gratis <b>+ {locked} recién llegados</b> que en el plan gratis todavía están bloqueados</> : ''}.</p>
+      )}
       <p className="perday-big">Todo el mes por <b>menos que dos cafés</b> en un bar porteño: unos <b>${Math.ceil(PRICE / 30)} por día</b>.</p>
       <dl className="facts">
         <div><dt>Con Premium</dt><dd>Ves cada aviso en el momento en que lo publicamos, y te avisamos al celular</dd></div>

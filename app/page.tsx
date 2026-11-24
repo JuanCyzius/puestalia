@@ -54,6 +54,7 @@ export default async function Home() {
         <article className="p-free">
           <p className="lbl">Gratis</p>
           <p className="pr">$0</p>
+          {jobs.length > 0 && <p className="total">{free.length} de {jobs.length} puestos abiertos</p>}
           <ul>
             <li>Cada aviso se abre <b>{FREE_DELAY_DAYS} días después</b> de publicado</li>
             <li>Empresa, contacto y cómo postularte</li>
@@ -64,6 +65,9 @@ export default async function Home() {
         <article className="p-prem">
           <p className="lbl">Premium <span>recomendado</span></p>
           <p className="pr">{money(PRICE)} <small>por 30 días</small></p>
+          {jobs.length > 0 && (
+            <p className="total">Accedés a <b>los {jobs.length} puestos</b> vigentes{fresh.length > 0 ? <>: {free.length} gratis <b>+ {fresh.length} que solo ves con Premium</b></> : ''}.</p>
+          )}
           <p className="perday">Todo el mes por <b>menos que dos cafés</b> en un bar porteño: unos <b>${PER_DAY} por día</b>.</p>
           <ul>
             <li>Ves <b>cada aviso apenas entra</b>, sin esperar {FREE_DELAY_DAYS} días</li>
