@@ -2,33 +2,24 @@ import Link from 'next/link'
 import { isPremium, listJobs } from '@/lib/db'
 import { PRICE } from '@/lib/mp'
 import { getUser } from '@/lib/session'
-import { FREE_DELAY_DAYS, freeAt, type Filters } from '@/lib/types'
+import { FREE_DELAY_DAYS, freeAt, type Filters, type Job } from '@/lib/types'
 import { Catalog, type CardData } from './catalog'
 import { TrustBand } from './trust'
-import { money, SERVICES } from '@/lib/services'
-
-// Es una secuencia real: lo que hace la persona, en orden.
-const STEPS = [
-  ['Completá la frase', 'Elegís modalidad, rubro y experiencia. Los avisos cambian al instante, sin recargar ni registrarte.'],
-  ['Leé la ficha en diez segundos', 'Todos los avisos tienen el mismo orden: horario, sueldo, requisitos. Si la empresa no publicó un dato, dice “No informado”.'],
-  ['Postulate en un toque', 'Si la empresa dejó un mail, el botón abre tu correo con destinatario, asunto y mensaje escritos. Adjuntás el CV y enviás.'],
-]
+import { money } from '@/lib/services'
 
 const site = (process.env.NEXT_PUBLIC_SITE_URL || 'https://puestalia.com').replace(/\/$/, '')
-const LD = {
+export const LD = {
   '@context': 'https://schema.org',
   '@graph': [
     { '@type': 'Organization', '@id': site + '/#org', name: 'Puestalia', url: site + '/', logo: site + '/icon-512.png', description: 'Avisos de empleo remotos, administrativos y sin experiencia en Argentina.' },
     { '@type': 'WebSite', '@id': site + '/#web', name: 'Puestalia', url: site + '/', inLanguage: 'es-AR', publisher: { '@id': site + '/#org' },
-      potentialAction: { '@type': 'SearchAction', target: site + '/?q={search_term_string}', 'query-input': 'required name=search_term_string' } },
+      potentialAction: { '@type': 'SearchAction', target: site + '/empleos?q={search_term_string}', 'query-input': 'required name=search_term_string' } },
   ],
 }
 
-/** El inicio, reutilizable: las páginas por tema lo muestran con el buscador ya filtrado y un título propio. */
-export async function HomeView({ f, preset, landing, ld }: { f: Filters; preset?: Filters; landing?: { h1: string; intro: string }; ld?: boolean }) {
-  const [jobs, user] = await Promise.all([listJobs(), getUser()])
-  const premium = await isPremium(user?.id)
-  const cards: CardData[] = jobs.map((j) => {
+/** Arma las tarjetas: a quien no es Premium no le llegan empresa, lugar ni sueldo de los avisos recién llegados. */
+export function toCards(jobs: Job[], premium: boolean): CardData[] {
+  return jobs.map((j) => {
     const free_at = freeAt(j)
     const open = premium || free_at.getTime() <= Date.now()
     return {
@@ -37,43 +28,31 @@ export async function HomeView({ f, preset, landing, ld }: { f: Filters; preset?
       company: open ? j.company : null, location: open ? j.location : null, salary: open ? j.salary : null,
     }
   })
+}
 
+/** Listado con buscador y filtros: /empleos, /gratis y las páginas por tema. */
+export async function HomeView({ f, preset, landing, ld, onlyFree, path }: { f: Filters; preset?: Filters; landing?: { h1: string; intro: string }; ld?: boolean; onlyFree?: boolean; path?: string }) {
+  const [all, user] = await Promise.all([listJobs(), getUser()])
+  const jobs = onlyFree ? all.filter((j) => freeAt(j).getTime() <= Date.now()) : all
+  const premium = await isPremium(user?.id)
+  const cards = toCards(jobs, premium)
   return (
     <>
       {ld && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(LD) }} />}
-      <Catalog cards={cards} premium={premium} preset={preset} title={landing?.h1} intro={landing?.intro}
+      <Catalog cards={cards} premium={premium} preset={preset} path={path} title={landing?.h1} intro={landing?.intro}
         initial={{ q: f.q, cat: f.cat ?? preset?.cat, mod: f.mod ?? preset?.mod, exp: f.exp ?? preset?.exp, jor: f.jor, dir: f.dir }} />
-
+      {!premium && <PremiumStrip />}
       <TrustBand />
-
-      <section className="svc-teaser" aria-label="Servicios">
-        <Link href="/servicios#cv-express"><b>Te hacemos el CV</b><span>Reescrito, claro y apuntado al puesto que buscás.</span><em>Desde {money(SERVICES['cv-express'].price)} →</em></Link>
-        <Link href="/servicios#acompanamiento"><b>Acompañamiento 30 días</b><span>Plan de búsqueda, tips semanales, revisión de mails y simulacro de entrevista. Premium incluido.</span><em>{money(SERVICES.acompanamiento.price)} →</em></Link>
-      </section>
-
-      <section className="how">
-        <h2>Cómo se usa</h2>
-        <ol>
-          {STEPS.map(([t, d]) => <li key={t}><h3>{t}</h3><p>{d}</p></li>)}
-        </ol>
-        <p className="promise">Cada aviso se lee antes de publicarse, enlaza a su fuente y se baja solo a los 30 días. Los que piden plata o datos bancarios no entran.</p>
-      </section>
-
-      <section className="app-cta">
-        <div>
-          <h2>Que las ofertas te lleguen al celular o a la compu</h2>
-          <p>Instalá Puestalia como app o activá las notificaciones en el navegador de la compu. Elegís rubro, modalidad y experiencia, y te avisamos solo de lo que te sirve.</p>
-        </div>
-        <Link className="btn ghost" href={user ? '/cuenta#avisos' : '/ingresar?next=/cuenta%23avisos'}>Activar avisos</Link>
-      </section>
-
-      {!premium && (
-        <section className="cta">
-          <h2>Premium te muestra cada oferta apenas entra. Gratis, {FREE_DELAY_DAYS} días después.</h2>
-          <p>Postularte en los primeros días suele pesar: muchos reclutadores leen primero los CV que llegan antes. Pase de 30 días por ${PRICE.toLocaleString('es-AR')}, pago único, sin débito automático.</p>
-          <Link className="btn" href="/premium">Quiero verlas primero</Link>
-        </section>
-      )}
     </>
+  )
+}
+
+/** Recordatorio corto de Premium debajo de los listados. */
+export function PremiumStrip() {
+  return (
+    <section className="pstrip">
+      <p><b>¿Querés ver los avisos apenas entran?</b> Con Premium no esperás {FREE_DELAY_DAYS} días: {money(PRICE)} por 30 días, unos ${Math.ceil(PRICE / 30)} por día. Pago único.</p>
+      <Link className="btn sm" href="/premium">Quiero Premium</Link>
+    </section>
   )
 }

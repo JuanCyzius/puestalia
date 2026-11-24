@@ -242,3 +242,38 @@ main { max-width:1080px; margin:0 auto; padding:0 18px 56px; }
 .pill { font:600 12px var(--body); background:var(--acc); color:var(--ink); border-radius:999px; padding:3px 10px; vertical-align:middle; margin-left:6px; }
 .order { border-top:1px solid var(--line); padding-top:12px; display:grid; gap:6px; font-size:15px; } .order a { text-decoration:underline; text-underline-offset:3px; }
 .order .notes { color:var(--mute); white-space:pre-wrap; } .order .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+
+/* Inicio nuevo */
+.home-hero { background:var(--ink); color:#fff; border-radius:24px; padding:clamp(26px,5vw,60px); margin-top:6px; }
+.home-hero .kicker { color:var(--soft); }
+.home-hero h1 { font:800 clamp(30px,5.4vw,54px)/1.06 var(--display); letter-spacing:-.02em; max-width:18ch; margin:10px 0 12px; }
+.home-hero .sub { color:#d9e2e8; font-size:clamp(16px,2vw,19px); max-width:52ch; }
+.hsearch { display:flex; gap:8px; margin-top:24px; max-width:640px; }
+.hsearch input { flex:1; min-width:0; font:inherit; font-size:17px; padding:15px 18px; border-radius:14px; border:0; background:#fff; color:var(--ink); }
+.hsearch .btn { padding-inline:22px; }
+.quick { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+.quick a { border:1px solid rgba(255,255,255,.25); color:#fff; border-radius:999px; padding:8px 14px; font-size:15px; }
+.quick a:hover { background:rgba(255,255,255,.1); }
+.home-hero .live { margin-top:20px; font:500 13px var(--mono); color:var(--soft); display:flex; align-items:center; gap:8px; }
+.home-hero .dot { width:9px; height:9px; border-radius:50%; background:var(--acc); display:inline-block; }
+.plans2 { display:grid; grid-template-columns:1fr 1.25fr; gap:14px; margin-top:28px; }
+@media (max-width:760px){ .plans2 { grid-template-columns:1fr; } .hsearch { flex-direction:column; } }
+.plans2 article { background:#fff; border:1px solid var(--line); border-radius:22px; padding:clamp(20px,3vw,30px); display:flex; flex-direction:column; gap:12px; }
+.plans2 .p-prem { border:2px solid var(--acc); box-shadow:0 18px 44px rgba(23,44,60,.10); }
+.plans2 .lbl { font:600 13px var(--mono); text-transform:uppercase; letter-spacing:.12em; color:var(--mute); }
+.plans2 .lbl span { background:var(--acc); color:var(--ink); border-radius:999px; padding:2px 8px; margin-left:6px; letter-spacing:0; text-transform:none; font-family:var(--body); }
+.plans2 .pr { font:800 clamp(34px,5vw,44px)/1 var(--display); } .plans2 .pr small { font:500 15px var(--body); color:var(--mute); }
+.plans2 .perday { background:#f1f8e6; border-radius:10px; padding:8px 12px; font-size:15px; }
+.plans2 ul { margin:0; padding-left:18px; display:grid; gap:8px; } .plans2 .btn { margin-top:auto; text-align:center; }
+.why { margin-top:14px; font-size:14px; color:var(--mute); max-width:80ch; }
+.shelf { margin-top:40px; } .shelf-head { display:flex; justify-content:space-between; align-items:baseline; gap:12px; margin-bottom:14px; }
+.shelf-head h2 { font-size:clamp(22px,3.4vw,28px); } .shelf-head a { font-weight:600; white-space:nowrap; }
+.pill.dark { background:var(--ink); color:#fff; }
+.how2 { margin-top:44px; } .how2 h2 { font-size:clamp(22px,3.4vw,28px); margin-bottom:12px; }
+.how2 ol { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; padding:0; list-style:none; counter-reset:h; }
+.how2 li { counter-increment:h; background:#fff; border:1px solid var(--line); border-radius:16px; padding:18px; font-size:15px; }
+.how2 li::before { content:counter(h); display:inline-grid; place-items:center; width:26px; height:26px; border-radius:50%; background:var(--acc); color:var(--ink); font:700 13px var(--mono); margin-right:8px; }
+.pstrip { margin-top:28px; display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; background:#f1f8e6; border:1px solid var(--soft); border-radius:18px; padding:16px 20px; }
+.pstrip p { max-width:70ch; }
+.perday-big { background:#f1f8e6; border:1px solid var(--soft); border-radius:14px; padding:12px 16px; font-size:17px; margin:16px 0; }
+@media (max-width:760px){ .plans2 .p-prem { order:-1; } }
